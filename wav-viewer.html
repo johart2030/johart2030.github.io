@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>25 Sound Player</title>
+
+<style>
+    :root{
+        --card:#ffffff;
+        --border:#e2e6ef;
+        --text:#2a2d34;
+        --muted:#6b6f76;
+    }
+
+    body{
+        font-family:system-ui,Segoe UI,Roboto,sans-serif;
+        background:linear-gradient(135deg, #4d8dff, #a8d4ff);
+        margin:0;
+        padding:25px;
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        color:var(--text);
+        min-height:100vh;
+    }
+
+    h1{
+        font-size:32px;
+        font-weight:700;
+        margin:0 0 10px;
+        text-align:center;
+        color:#fff;
+        text-shadow:0 1px 2px rgba(0,0,0,0.15);
+    }
+
+    p{
+        max-width:700px;
+        text-align:center;
+        margin:0 0 25px;
+        color:#f0f8ff;
+        line-height:1.5;
+        text-shadow:0 1px 2px rgba(0,0,0,0.15);
+    }
+
+    /* Controls card */
+    #controls{
+        background:var(--card);
+        border:1px solid var(--border);
+        padding:18px;
+        border-radius:16px;
+        display:flex;
+        gap:12px;
+        align-items:center;
+        flex-wrap:wrap;
+        max-width:850px;
+        margin-bottom:25px;
+        box-shadow:0 1px 4px rgba(0,0,0,0.12);
+    }
+
+    button, #controls span{
+        padding:10px 14px;
+        border-radius:10px;
+        border:1px solid var(--border);
+        background:#fff;
+        cursor:pointer;
+        font-weight:600;
+        transition:.15s;
+    }
+    button:hover, #controls span:hover{
+        background:#eef1ff;
+    }
+    button:active{transform:scale(.97)}
+
+    #dropZone{
+        flex:1;
+        min-width:240px;
+        padding:14px;
+        border:2px dashed var(--border);
+        border-radius:12px;
+        background:#fafbff;
+        color:var(--muted);
+        transition:.15s;
+    }
+
+    /* Grid of buttons — now auto-expands to name length */
+    .grid{
+        display:grid;
+        grid-template-columns:repeat(auto-fit, minmax(160px, auto));
+        gap:12px;
+        width:100%;
+        max-width:900px;
+    }
+
+    .grid button{
+        background:var(--card);
+        border:1px solid var(--border);
+        padding:14px 18px;
+        border-radius:14px;
+        font-weight:600;
+        font-size:15px;
+        white-space:nowrap;       /* prevents wrapping */
+        width:auto;               /* expand to fit text */
+        box-shadow:0 1px 4px rgba(0,0,0,0.12);
+    }
+    .grid button:hover{
+        background:#dfe8ff;
+    }
+</style>
+</head>
+
+<body>
+
+<h1>25 Sound Buttons</h1>
+
+<p>
+    Click <strong>"Load folder"</strong> to select the folder containing this page,  
+    or choose / drag-and-drop your <code>.wav</code> files.  
+    Buttons will appear automatically.
+</p>
+
+<div id="controls">
+    <button id="loadFolderBtn" type="button">Load folder</button>
+
+    <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
+        <input id="fileInput" type="file" accept=".wav,audio/wav" multiple style="display:none">
+        <span>Choose .wav files</span>
+    </label>
+
+    <button id="clearBtn" type="button">Clear</button>
+
+    <div id="dropZone">Or drop .wav files here</div>
+</div>
+
+<div id="buttons" class="grid" aria-label="Sound buttons"></div>
+
+<script>
+    const container = document.getElementById('buttons');
+    const loadFolderBtn = document.getElementById('loadFolderBtn');
+    const fileInput = document.getElementById('fileInput');
+    const clearBtn = document.getElementById('clearBtn');
+    const dropZone = document.getElementById('dropZone');
+
+    const objectUrls = [];
+
+    function addButton(label, src, title){
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = label;
+        btn.title = title || label;
+        btn.dataset.src = src;
+
+        btn.addEventListener('click', () => {
+            const audio = new Audio(btn.dataset.src);
+            audio.play().catch(err => {
+                console.error('Audio failed', err);
+                alert('Could not play ' + (title || label));
+            });
+        });
+
+        container.appendChild(btn);
+    }
+
+    function filenameLabel(name){
+        return name.replace(/\.wav$/i,'');
+    }
+
+    async function handleFile(file){
+        if(!/\.wav$/i.test(file.name)) return;
+        const url = URL.createObjectURL(file);
+        objectUrls.push(url);
+        addButton(filenameLabel(file.name), url, file.name);
+    }
+
+    function handleFileList(list){
+        Array.from(list || []).forEach(handleFile);
+    }
+
+    fileInput.addEventListener('change', e=>{
+        handleFileList(e.target.files);
+        fileInput.value='';
+    });
+
+    ['dragenter','dragover','dragleave','drop'].forEach(evt =>
+        dropZone.addEventListener(evt, e=>e.preventDefault())
+    );
+
+    dropZone.addEventListener('dragover', () => {
+        dropZone.style.borderColor = '#7ca5ff';
+        dropZone.style.background = '#fff';
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.style.borderColor = '#e2e6ef';
+        dropZone.style.background = '#fafbff';
+    });
+
+    dropZone.addEventListener('drop', e=>{
+        dropZone.style.borderColor='#e2e6ef';
+        dropZone.style.background='#fafbff';
+        handleFileList(e.dataTransfer.files);
+    });
+
+    clearBtn.addEventListener('click', () => {
+        container.innerHTML='';
+        objectUrls.forEach(u => URL.revokeObjectURL(u));
+        objectUrls.length = 0;
+    });
+
+    loadFolderBtn.addEventListener('click', async ()=>{
+        if(typeof window.showDirectoryPicker !== 'function'){
+            alert('Your browser does not support folder selection.');
+            return;
+        }
+        try{
+            const dirHandle = await window.showDirectoryPicker();
+            for await (const [name,handle] of dirHandle.entries()){
+                if(handle.kind === 'file' && /\.wav$/i.test(name)){
+                    const file = await handle.getFile();
+                    await handleFile(file);
+                }
+            }
+        }catch(e){}
+    });
+
+    (async function(){
+        try{
+            const res = await fetch('./list');
+            if(!res.ok) return;
+            const names = await res.json();
+            if(!Array.isArray(names)) return;
+            names.forEach(name=>{
+                if(/\.wav$/i.test(name)){
+                    addButton(filenameLabel(name), './'+name, name);
+                }
+            });
+        }catch{}
+    })();
+</script>
+
+</body>
+</html>
