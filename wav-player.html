@@ -106,12 +106,39 @@
     .grid button:hover{
         background:#dfe8ff;
     }
+    <style>
+    #homeBtn {
+        position: fixed;
+        top: 15px;
+        right: 15px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #fff;
+        cursor: pointer;
+        font-weight: 600;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        transition: 0.15s;
+        z-index: 1000;
+    }
+
+    #homeBtn:hover {
+        background: #eef1ff;
+    }
+
+    #homeBtn:active {
+        transform: scale(0.97);
+    }
+</style>
+
 </style>
 </head>
 
 <body>
 
 <h1>.WAV Player</h1>
+
+<button id="homeBtn">🏠 Home</button>
 
 <p>
     Click <strong>"Load folder"</strong> to select the folder containing this page,  
@@ -255,8 +282,13 @@ loadFolderBtn.addEventListener('click', async ()=>{
         });
     }catch{}
 })();
-</script>
 
+// ===== Home button functionality =====
+const homeBtn = document.getElementById('homeBtn');
+homeBtn.addEventListener('click', () => {
+    window.location.href = 'index.html'; // replace with your main page URL
+});
+</script>
 
 </body>
 </html>
