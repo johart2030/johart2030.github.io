@@ -56,7 +56,7 @@ playing by hitting "Stop All"
 
 git clone https://github.com/johart2030/johart2030.github.io
 
-	2.	Open any project by navigating to its folder and opening the .html file in your browser.
+2.	Open any project by navigating to its folder and opening the .html file in your browser.
 
 Example:
 
