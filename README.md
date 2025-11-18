@@ -14,7 +14,7 @@ The site is used as a central hub for projects, tools, experiments, and web util
 
 📁 Projects
 
-🎵 WAV Player
+🎵 .WAV Player
 
 A simple, clean audio playback tool that allows users to load and play WAV audio files directly in the browser.
 
@@ -23,10 +23,16 @@ https://johart2030.github.io/wav-player/wav-player.html
 
 Features
 	•	Supports .wav audio files
-	•	Play / pause controls
+	•	Play / Stop controls
 	•	Lightweight and fast
 	•	Works fully client-side (no uploads to a server)
+	•	Open-Source
 
+How to Use 🎛️
+
+Upload any .WAV Audio File or folder containing .WAV Files and watch as they pop up 
+with their name on you screen. You can play one at a time and stop the one 
+playing by hitting "Stop All"
 ⸻
 
 🚀 Purpose of This Repository
