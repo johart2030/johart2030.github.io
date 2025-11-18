@@ -14,6 +14,7 @@ The site is used as a central hub for projects, tools, experiments, and web util
 
 📁 Projects
 
+
 🎵 .WAV Player
 
 A simple, clean audio playback tool that allows users to load and play WAV audio files directly in the browser.
@@ -33,13 +34,45 @@ How to Use 🎛️
 Upload any .WAV Audio File or folder containing .WAV Files and watch as they pop up 
 with their name on you screen. You can play one at a time and stop the one 
 playing by hitting "Stop All"
+
+⸻
+
+📁 Project Ideas
+
+A dedicated page showcasing a collection of potential web projects, experiments, and creative ideas for the developer to potentially add.
+
+🔗 Visit the page here:
+https://johart2030.github.io/project-ideas/project-ideas.html
+
+Features
+
+  •  Organized list of project ideas with brief descriptions
+
+  •  Central hub for brainstorming and planning new web tools
+
+  •  Fully client-side, lightweight, and easy to navigate
+
+  • Open-Source
+
+Purpose
+
+  •  Serve as a visual roadmap for future projects
+
+  •  Inspire experimentation with HTML, CSS, and JavaScript
+
+  •  Provide a quick reference for ideas in progress
+
 ⸻
 
 🚀 Purpose of This Repository
-	•	Host personal tools and web projects
-	•	Experiment with front-end development
-	•	Practice HTML, CSS, JavaScript
-	•	Provide a landing page for GitHub Pages
+
+  •  Host personal tools and web projects
+
+  •  Experiment with front-end development
+
+  •  Practice HTML, CSS, JavaScript
+
+  •  Provide a landing page for GitHub Pages
 
 ⸻
 
