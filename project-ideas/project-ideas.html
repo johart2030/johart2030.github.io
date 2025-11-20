@@ -168,23 +168,38 @@
     loadIdeas();
   });
 
-  async function loadIdeas() {
-    ideasList.innerHTML = "";
+async function loadIdeas() {
+  ideasList.innerHTML = "";
 
-    const q = query(collection(db, "projectIdeas"), orderBy("time", "desc"));
-    const querySnapshot = await getDocs(q);
+  const q = query(collection(db, "projectIdeas"), orderBy("time", "desc"));
+  const querySnapshot = await getDocs(q);
 
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      const div = document.createElement("div");
-      div.className = "idea";
-      div.innerHTML = `
-        <strong>${data.name}</strong><br>
-        ${data.idea}
-      `;
-      ideasList.appendChild(div);
-    });
-  }
+  querySnapshot.forEach((doc) => {
+    const data = doc.data();
+
+    // Convert timestamp → JS Date → readable string
+    let displayTime = "Just now";
+    if (data.time && data.time.toDate) {
+      displayTime = data.time.toDate().toLocaleString([], {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    const div = document.createElement("div");
+    div.className = "idea";
+    div.innerHTML = `
+      <strong>${data.name}</strong> <br>
+      ${data.idea} <br><br>
+      <small style="color:#888;">${displayTime}</small>
+    `;
+    ideasList.appendChild(div);
+  });
+}
+
 
   loadIdeas();
 </script>
