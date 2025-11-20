@@ -96,13 +96,15 @@
     a {
       color: #78aaff;
     }
-    #homeBtn {
+#homeBtn {
+    width: auto; /* Let it fit its content */
+    min-width: 50px; /* optional, for consistency */
     position: fixed;
     top: 15px;
     right: 15px;
     padding: 10px 14px;
     border-radius: 10px;
-    border: 1px solid var(--border);
+    border: 1px solid #888; /* fallback if var(--border) isn't defined */
     background: #fff;
     cursor: pointer;
     font-weight: 600;
