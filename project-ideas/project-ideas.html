@@ -120,11 +120,18 @@
 <!-- Firebase + Firestore -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, getDocs, orderBy, query } 
-    from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+  import { 
+    getFirestore, 
+    collection, 
+    addDoc, 
+    getDocs, 
+    orderBy, 
+    query,
+    serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
   const firebaseConfig = {
-    apiKey: "AIzaSyCRbDTrm48YTuJfPFnV9BvCBoOw6P69Qm4",
+    apiKey: "AIzaSyCRbDTrm49YTuJfPFnV9BvCBoOw6P69Qm4",
     authDomain: "github-johart2030.firebaseapp.com",
     projectId: "github-johart2030",
     storageBucket: "github-johart2030.firebasestorage.app",
@@ -153,7 +160,7 @@
     await addDoc(collection(db, "projectIdeas"), {
       name,
       idea,
-      time: Date.now()
+      time: serverTimestamp()   // <-- Correct Firebase timestamp
     });
 
     nameInput.value = "";
