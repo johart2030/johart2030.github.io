@@ -96,12 +96,36 @@
     a {
       color: #78aaff;
     }
+    #homeBtn {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    transition: 0.15s;
+    z-index: 1000;
+}
+
+#homeBtn:hover {
+    background: #eef1ff;
+}
+
+#homeBtn:active {
+    transform: scale(0.97);
+}
   </style>
 
 </head>
 <body>
 
 <h1>Suggest a Project Idea</h1>
+
+<button id="homeBtn">🏠 Home</button>
 
 <div class="card">
   <label>Your Name</label>
@@ -202,6 +226,10 @@ async function loadIdeas() {
 
 
   loadIdeas();
+  const homeBtn = document.getElementById('homeBtn');
+homeBtn.addEventListener('click', () => {
+    window.location.href = 'https://johart2030.github.io'; // replace with your main page URL
+});
 </script>
 
 </body>
