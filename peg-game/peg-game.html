@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Triangle Peg Game — @johart2030</title>
 
 <style>
@@ -232,6 +232,9 @@ body{
     color: var(--muted);
 }
 
+button, .peg, .hole, .triangle-cell {
+    touch-action: manipulation;
+}
 </style>
 </head>
 
@@ -371,7 +374,7 @@ function buildBoard(){
       hole.className = "hole";
       hole.dataset.index = index;
 
-      hole.addEventListener("click", holeClick);
+hole.addEventListener("pointerdown", holeClick);
 
       updateHoleVisual(hole, hasPeg[index]);
       cell.appendChild(hole);
