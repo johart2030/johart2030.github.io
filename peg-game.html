@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Triangle Peg Game — @johart2030</title>
+
+<style>
+  :root{
+    --bg:#0f1724;
+    --card:#0b1220;
+    --accent:#6ee7b7;
+    --muted:#9ca3af;
+    --hole:#071028;
+    --peg:#f8fafc;
+    --danger:#fb7185;
+  }
+
+  html,body{
+    margin:0;
+    padding:0;
+    height:100%;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto;
+    background:linear-gradient(180deg,var(--bg),#041022 120%);
+    color:var(--peg);
+  }
+
+  body{
+    display:flex;
+    justify-content:center;
+    padding:30px 12px 60px;
+  }
+
+  .container{
+    width:950px;
+    max-width:100%;
+    background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));
+    border:1px solid rgba(255,255,255,0.03);
+    border-radius:12px;
+    padding:22px;
+    box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+  }
+
+  header{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    margin-bottom:16px;
+  }
+
+  .avatar{
+    width:54px;height:54px;border-radius:9px;
+    background:linear-gradient(135deg,#0ea5a4,#2563eb);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:20px;color:#001219;
+  }
+
+  h1{margin:0;font-size:20px;}
+  p.site-desc{margin:4px 0 0;color:var(--muted);font-size:13px;}
+
+  .top-controls{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom:18px;
+  }
+
+  .btn{
+    background:transparent;
+    border:1px solid rgba(255,255,255,0.06);
+    color:var(--peg);
+    padding:9px 14px;
+    border-radius:8px;
+    font-weight:600;
+    cursor:pointer;
+    font-size:14px;
+  }
+
+  .btn.primary{
+    background:linear-gradient(90deg,var(--accent),#60a5fa);
+    color:#032022;
+    border:none;
+  }
+
+  .btn.danger{
+    border-color:rgba(250,50,80,0.2);
+    color:var(--danger);
+  }
+
+  /* Board wrapper */
+  .board-card{
+    padding:20px;
+    border-radius:12px;
+    border:1px solid rgba(255,255,255,0.03);
+    background:linear-gradient(180deg,rgba(255,255,255,0.015),rgba(255,255,255,0.010));
+  }
+
+  /* RESPONSIVE TRIANGLE BOARD */
+  .board{
+    width:100%;
+    display:flex;
+    justify-content:center;
+  }
+
+  .triangle{
+    display:grid;
+    width:100%;
+    max-width:500px;
+    /* Auto-scale grid using vw for phones */
+    grid-template-columns:repeat(9, 1fr);
+    gap:2vw;
+  }
+
+  @media(min-width:600px){
+    .triangle{
+      gap:14px;
+    }
+  }
+
+  .cell{
+    aspect-ratio:1;
+    border-radius:50%;
+    background:var(--hole);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+  }
+
+  .hole{
+    width:80%;
+    height:80%;
+    border-radius:50%;
+    cursor:pointer;
+    border:2px dashed rgba(255,255,255,0.08);
+    background:transparent;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+  }
+
+  .hole.empty{
+    border-style:solid;
+    border-color:rgba(255,255,255,0.04);
+  }
+
+  .peg{
+    width:70%;
+    height:70%;
+    background:var(--peg);
+    border-radius:50%;
+  }
+
+  .hole.selected{
+    box-shadow:0 0 14px rgba(110,231,183,0.35);
+  }
+
+  .hole.highlight{
+    background:rgba(110,231,183,0.18);
+    border-color:rgba(110,231,183,0.4);
+  }
+
+  .choose-mode .hole{
+    border-color:rgba(110,231,183,0.28) !important;
+    background:rgba(110,231,183,0.07);
+  }
+
+  .choose-mode .hole:hover{
+    background:rgba(110,231,183,0.25);
+  }
+
+  /* Right side info */
+  .info{
+    margin-top:20px;
+    padding-top:12px;
+    border-top:1px solid rgba(255,255,255,0.03);
+    font-size:14px;
+    color:var(--muted);
+  }
+
+  .info strong{
+    color:var(--peg);
+  }
+
+</style>
+</head>
+
+<body>
+<div class="container">
+
+  <header>
+    <div class="avatar">@J</div>
+    <div>
+      <h1>@johart2030</h1>
+      <p class="site-desc">Triangle Peg Game</p>
+    </div>
+  </header>
+
+  <div class="top-controls">
+    <button class="btn primary" id="resetBtn">Reset</button>
+    <button class="btn" id="undoBtn">Undo</button>
+    <button class="btn" id="solveBtn">Show solution</button>
+    <button class="btn danger" id="clearBtn">Clear</button>
+    <button class="btn" id="chooseBtn">Choose Start Hole</button>
+  </div>
+
+  <section class="board-card">
+    <div class="board">
+      <div id="triangle" class="triangle"></div>
+    </div>
+    <div class="info">
+      Pegs remaining: <strong id="pegCount">0</strong>
+    </div>
+  </section>
+
+</div>
+
+
+<script>
+/* ============ GAME LOGIC ============ */
+
+const rows = 5;
+let positions = [];
+let idx = 0;
+for (let r = 0; r < rows; r++) {
+  for (let c = 0; c <= r; c++) {
+    positions.push({ r, c, index: idx });
+    idx++;
+  }
+}
+
+const N = positions.length;
+
+/* directions */
+const dirs = [
+  { dr: -1, dc: -1 }, { dr: -1, dc: 0 },
+  { dr: 0, dc: -1 },  { dr: 0, dc: 1 },
+  { dr: 1, dc: 0 },   { dr: 1, dc: 1 },
+];
+
+function rcToIndex(r, c){ return (r * (r + 1)) / 2 + c; }
+
+/* Precompute jumps */
+const jumps = Array.from({ length: N }, () => []);
+for (let p of positions) {
+  for (let d of dirs) {
+    const r1 = p.r + d.dr;
+    const c1 = p.c + d.dc;
+    const r2 = p.r + 2*d.dr;
+    const c2 = p.c + 2*d.dc;
+    if (
+      r1 >= 0 && r1 < rows && c1 >= 0 && c1 <= r1 &&
+      r2 >= 0 && r2 < rows && c2 >= 0 && c2 <= r2
+    ) {
+      jumps[p.index].push({
+        over: rcToIndex(r1, c1),
+        to: rcToIndex(r2, c2)
+      });
+    }
+  }
+}
+
+/* GAME STATE */
+let hasPeg = new Array(N).fill(true);
+let defaultEmpty = Math.floor(N / 2);
+hasPeg[defaultEmpty] = false;
+
+let selected = null;
+let history = [];
+let chooseMode = false;
+
+/* DOM */
+const triangleEl = document.getElementById("triangle");
+const pegCountEl = document.getElementById("pegCount");
+
+function buildBoard(){
+  triangleEl.innerHTML = "";
+  triangleEl.classList.remove("choose-mode");
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c <= r; c++) {
+      const index = rcToIndex(r, c);
+      const cell = document.createElement("div");
+      cell.className = "cell";
+
+      // Center grid: offset using grid-column
+      const center = 5;
+      const offset = c * 2 - r;
+      cell.style.gridColumn = String(center + offset);
+
+      const hole = document.createElement("div");
+      hole.className = "hole";
+      hole.dataset.index = index;
+
+      hole.addEventListener("click", holeClick);
+
+      updateHoleVisual(hole, hasPeg[index]);
+      cell.appendChild(hole);
+      triangleEl.appendChild(cell);
+    }
+  }
+
+  updateCounts();
+}
+
+function updateHoleVisual(hole, peg){
+  hole.innerHTML = "";
+  hole.classList.remove("empty","selected","highlight");
+
+  if (peg){
+    const pegEl = document.createElement("div");
+    pegEl.className = "peg";
+    hole.appendChild(pegEl);
+  } else {
+    hole.classList.add("empty");
+  }
+}
+
+function updateCounts(){
+  pegCountEl.textContent = hasPeg.filter(Boolean).length;
+}
+
+function holeClick(e){
+  const i = Number(e.currentTarget.dataset.index);
+
+  /* CHOOSE MODE */
+  if (chooseMode){
+    chooseMode = false;
+    triangleEl.classList.remove("choose-mode");
+
+    // Reset then apply selected empty spot
+    hasPeg = new Array(N).fill(true);
+    hasPeg[i] = false;
+    selected = null;
+    history = [];
+    buildBoard();
+    return;
+  }
+
+  /* NORMAL MODE */
+  if (selected === null){
+    if (!hasPeg[i]) return;
+    if (legalMoves(i).length === 0) return;
+    selected = i;
+    renderSelection();
+  } else if (selected === i){
+    selected = null;
+    renderSelection();
+  } else {
+    const move = legalMoves(selected).find(m => m.to === i);
+    if (move){
+      makeMove(selected, move.over, move.to);
+      selected = null;
+      renderSelection();
+    } else {
+      if (hasPeg[i] && legalMoves(i).length > 0){
+        selected = i;
+      } else {
+        selected = null;
+      }
+      renderSelection();
+    }
+  }
+}
+
+function legalMoves(i){
+  if (!hasPeg[i]) return [];
+  let result = [];
+  for (let j of jumps[i]){
+    if (hasPeg[j.over] && !hasPeg[j.to]) result.push(j);
+  }
+  return result;
+}
+
+function renderSelection(){
+  document.querySelectorAll(".hole").forEach(h => {
+    const index = Number(h.dataset.index);
+    updateHoleVisual(h, hasPeg[index]);
+
+    h.classList.remove("selected","highlight");
+
+    if (selected !== null){
+      if (index === selected){
+        h.classList.add("selected");
+      }
+      if (legalMoves(selected).some(m => m.to === index)){
+        h.classList.add("highlight");
+      }
+    }
+  });
+
+  updateCounts();
+}
+
+function makeMove(from, over, to){
+  hasPeg[from] = false;
+  hasPeg[over] = false;
+  hasPeg[to] = true;
+
+  history.push({ from, over, to });
+  renderSelection();
+}
+
+/* Reset */
+document.getElementById("resetBtn").onclick = () => {
+  hasPeg = new Array(N).fill(true);
+  hasPeg[defaultEmpty] = false;
+  selected = null;
+  history = [];
+  buildBoard();
+};
+
+/* Undo */
+document.getElementById("undoBtn").onclick = () => {
+  const m = history.pop();
+  if (!m) return;
+  hasPeg[m.from] = true;
+  hasPeg[m.over] = true;
+  hasPeg[m.to] = false;
+  selected = null;
+  renderSelection();
+};
+
+/* Clear */
+document.getElementById("clearBtn").onclick = () => {
+  if (!confirm("Clear all pegs?")) return;
+  hasPeg = new Array(N).fill(false);
+  selected = null;
+  history = [];
+  renderSelection();
+};
+
+/* Choose Start Hole */
+document.getElementById("chooseBtn").onclick = () => {
+  chooseMode = true;
+  triangleEl.classList.add("choose-mode");
+};
+
+/* Solver (same as before) */
+function solveFromState(){
+  const target = 1;
+  const start = hasPeg.slice();
+  const seen = new Set();
+  let sol = null;
+
+  function key(a){ return a.map(v=>v?1:0).join(""); }
+
+  function dfs(state, hist){
+    if (sol) return true;
+    const k = key(state);
+    if (seen.has(k)) return false;
+    seen.add(k);
+
+    const count = state.filter(Boolean).length;
+    if (count === target){
+      sol = hist.slice();
+      return true;
+    }
+
+    for (let i = 0; i < N; i++){
+      if (!state[i]) continue;
+      for (let m of jumps[i]){
+        if (state[m.over] && !state[m.to]){
+          const next = state.slice();
+          next[i]=false; next[m.over]=false; next[m.to]=true;
+          hist.push({ from:i, over:m.over, to:m.to });
+          if (dfs(next, hist)) return true;
+          hist.pop();
+        }
+      }
+    }
+    return false;
+  }
+
+  dfs(start, []);
+  return sol;
+}
+
+document.getElementById("solveBtn").onclick = () => {
+  const seq = solveFromState();
+  if (!seq){
+    alert("No solution from this position.");
+    return;
+  }
+  if (!confirm("Play solution sequence onto board?")) return;
+
+  let i = 0;
+  function step(){
+    if (i >= seq.length) return;
+    const m = seq[i++];
+    if (hasPeg[m.from] && hasPeg[m.over] && !hasPeg[m.to]){
+      makeMove(m.from, m.over, m.to);
+    }
+    setTimeout(step, 350);
+  }
+  step();
+};
+
+/* INIT */
+buildBoard();
+renderSelection();
+</script>
+
+</body>
+</html>
