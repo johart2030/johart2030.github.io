@@ -183,51 +183,51 @@
 
 /* Info Section */
 .peg-info {
-    max-width: 700px;
+    max-width: 950px;
     margin: 2rem auto;
     padding: 1.5rem;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(6px);
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015));
+    border: 1px solid rgba(255,255,255,0.03);
     border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    font-family: system-ui, sans-serif;
+    box-shadow: 0 10px 25px rgba(2,6,23,0.4);
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.65;
 }
 
 .peg-info h2 {
-    font-size: 1.8rem;
-    margin-bottom: 1rem;
+    font-size: 22px;
+    margin-top: 0;
+    margin-bottom: 10px;
     text-align: center;
+    color: var(--peg);
 }
 
 .peg-info h3 {
-    margin-top: 1.5rem;
-    margin-bottom: 0.5rem;
-    font-size: 1.25rem;
-}
-
-.peg-info p {
-    line-height: 1.6;
-    font-size: 1rem;
+    margin-top: 22px;
+    margin-bottom: 6px;
+    font-size: 18px;
+    color: var(--peg);
 }
 
 .peg-info ul {
-    padding-left: 1.25rem;
-    line-height: 1.6;
+    padding-left: 20px;
 }
 
-.peg-info-credit {
-    margin-top: 2rem;
-    text-align: center;
-    font-size: 0.95rem;
-}
-
-.peg-info-credit a {
-    color: #0077ff;
+.peg-info a {
+    color: var(--accent);
     text-decoration: none;
 }
 
-.peg-info-credit a:hover {
+.peg-info a:hover {
     text-decoration: underline;
+}
+
+.peg-info-credit {
+    margin-top: 1.5rem;
+    text-align: center;
+    font-size: 14px;
+    color: var(--muted);
 }
 
 </style>
@@ -267,31 +267,30 @@
     <h2>🧩 About the Triangle Peg Game</h2>
     <p>
         This classic peg-jumping puzzle challenges you to reduce the board to
-        just <strong>one peg</strong>. The board starts with 15 pegs arranged
-        in a triangle, and you can choose where the starting empty hole is.
+        just <strong>one peg</strong>. The board starts with 15 pegs arranged in
+        a triangle, and you can choose the starting empty hole.
     </p>
 
     <h3>How to Play</h3>
     <ul>
-        <li>Tap any peg to select it.</li>
-        <li>Tap a valid destination hole to jump over one peg into an empty hole.</li>
-        <li>The jumped peg is removed from the board.</li>
-        <li>Continue making jumps until no moves remain.</li>
-        <li>Your goal: finish with <strong>just one peg</strong> left.</li>
+        <li>Tap a peg to select it.</li>
+        <li>Tap a highlighted hole to jump over a peg.</li>
+        <li>The jumped peg is removed.</li>
+        <li>Undo a move anytime.</li>
+        <li>Try to finish with <strong>just one peg</strong> left.</li>
     </ul>
 
     <h3>Game Features</h3>
     <ul>
-        <li>Fully responsive — works great on phones and tablets.</li>
-        <li>Choose your starting empty hole.</li>
-        <li>Undo last move.</li>
-        <li>Reset game instantly.</li>
+        <li>Fully responsive layout for mobile & desktop.</li>
+        <li>Choose starting empty hole.</li>
+        <li>Undo, reset, and auto-solver.</li>
+        <li>Clean dark UI matching the @johart2030 site style.</li>
     </ul>
 
     <p class="peg-info-credit">
-        Created by <a href="https://johart2030.github.io" target="_blank">johart2030</a>
+        Created by <a href="https://johart2030.github.io" target="_blank">@johart2030</a>
     </p>
-    
 </section>
 
 <script>
