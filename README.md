@@ -64,6 +64,29 @@ Purpose
 
 ⸻
 
+## 🧩 Triangle Peg Game
+
+Try the classic triangle peg-jumping puzzle — now fully responsive and playable on mobile!
+
+👉 **Play here:**  
+https://johart2030.github.io/peg-game/peg-game.html
+
+How to Play
+- The board contains 15 pegs arranged in a triangle.
+- Select a peg, then jump over an adjacent peg into an empty hole.
+- The jumped peg is removed.
+- Continue until no more moves remain.
+
+Features
+- Mobile-friendly responsive board  
+- “Choose Start Hole” mode  
+- Undo & reset options  
+- Clean and simple UI matching the style of *johart2030.github.io*
+
+Try to finish with **just one peg left** — can you do it?
+
+ ___________
+
 🚀 Purpose of This Repository
 
   •  Host personal tools and web projects
