@@ -1,0 +1,224 @@
+:root {
+  --bg-a: #051018;
+  --bg-b: #10293e;
+  --line: #73f2ff;
+  --accent: #ffd166;
+  --danger: #ff5d73;
+  --panel: #07111bcc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: #eef8ff;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: radial-gradient(circle at 20% 10%, #204469 0%, var(--bg-b) 35%, var(--bg-a) 100%);
+}
+
+.app {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.hud {
+  background: var(--panel);
+  border: 1px solid #ffffff22;
+  border-radius: 14px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.4rem;
+}
+
+.stats {
+  display: flex;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
+}
+
+.auth {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+button {
+  border: 1px solid #ffffff33;
+  background: #0d1f30;
+  color: #f8fcff;
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hint {
+  margin: 0.7rem 0 0;
+  opacity: 0.85;
+}
+
+.shop {
+  margin-top: 0.9rem;
+  border-top: 1px solid #ffffff1f;
+  padding-top: 0.8rem;
+}
+
+.shop h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+}
+
+.shop-row {
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.45rem;
+}
+
+select {
+  border: 1px solid #ffffff33;
+  background: #0d1f30;
+  color: #f8fcff;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+}
+
+#shopMsg {
+  margin: 0.5rem 0 0;
+  min-height: 1.1rem;
+  opacity: 0.85;
+}
+
+.game-wrap {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #ffffff22;
+  box-shadow: 0 10px 35px #00000088;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: linear-gradient(180deg, #0f2e49 0%, #07131f 100%);
+}
+
+.game-top {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
+  right: 0.7rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.game-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: #051018bb;
+  border: 1px solid #ffffff24;
+  border-radius: 10px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.92rem;
+}
+
+#openAuthBtn {
+  pointer-events: auto;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  background: #00000044;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.overlay h2 {
+  color: var(--accent);
+  margin-bottom: 0.35rem;
+}
+
+.auth-modal {
+  position: fixed;
+  inset: 0;
+  background: #00000070;
+  display: grid;
+  place-items: center;
+  z-index: 10;
+  padding: 1rem;
+}
+
+.auth-modal.hidden {
+  display: none;
+}
+
+.auth-card {
+  width: min(480px, 100%);
+  background: #07111bf5;
+  border: 1px solid #ffffff2a;
+  border-radius: 12px;
+  padding: 1rem;
+  position: relative;
+}
+
+.auth-card h2 {
+  margin: 0 0 0.5rem;
+}
+
+.auth-card input {
+  width: 100%;
+  margin-bottom: 0.5rem;
+  border: 1px solid #ffffff33;
+  background: #0d1f30;
+  color: #f8fcff;
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+}
+
+.auth-actions {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.close-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  padding: 0.35rem 0.6rem;
+}
+
+@media (max-width: 640px) {
+  .shop-row {
+    grid-template-columns: 1fr;
+  }
+
+  .game-stats {
+    font-size: 0.82rem;
+  }
+}

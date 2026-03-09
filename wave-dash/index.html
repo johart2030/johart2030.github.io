@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wave Dash</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <section class="hud">
+      <h1>Wave Dash</h1>
+      <p class="hint">Hold SPACE / click / tap to fly up. Release to dive.</p>
+      <section class="shop">
+        <h2>Garage</h2>
+        <div class="shop-row">
+          <label for="spriteSelect">Sprite</label>
+          <select id="spriteSelect"></select>
+          <button id="spriteActionBtn">Buy</button>
+        </div>
+        <div class="shop-row">
+          <label for="trailSelect">Trail</label>
+          <select id="trailSelect"></select>
+          <button id="trailActionBtn">Buy</button>
+        </div>
+        <div class="shop-row">
+          <label for="colorSelect">Color</label>
+          <select id="colorSelect"></select>
+          <button id="colorActionBtn">Buy</button>
+        </div>
+        <p id="shopMsg">Earn points from score to buy new looks.</p>
+      </section>
+    </section>
+
+    <section class="game-wrap">
+      <canvas id="game" width="960" height="540" aria-label="game canvas"></canvas>
+      <div class="game-top">
+        <div class="game-stats">
+          <span>Score: <strong id="score">0</strong></span>
+          <span>Best: <strong id="best">0</strong></span>
+          <span>Speed: <strong id="speed">1.00x</strong></span>
+          <span>Points: <strong id="coins">0</strong></span>
+        </div>
+        <button id="openAuthBtn">Login</button>
+      </div>
+      <div class="overlay" id="overlay">
+        <h2 id="overlayTitle">Press Space To Start</h2>
+        <p id="overlayText">Avoid the wave walls and survive as long as possible.</p>
+      </div>
+    </section>
+  </main>
+
+  <section class="auth-modal hidden" id="authModal">
+    <div class="auth-card">
+      <button class="close-btn" id="closeAuthBtn" aria-label="Close login">X</button>
+      <h2>Account</h2>
+      <p id="authState">Guest mode (login optional)</p>
+      <input id="authName" type="text" placeholder="Display name (for sign up)" />
+      <input id="authEmail" type="email" placeholder="Email" />
+      <input id="authPassword" type="password" placeholder="Password" />
+      <div class="auth-actions">
+        <button id="emailLoginBtn">Log in with Email</button>
+        <button id="emailSignupBtn">Sign up with Email</button>
+        <button id="googleLoginBtn">Sign in with Google</button>
+        <button id="logoutBtn" disabled>Sign out</button>
+      </div>
+    </div>
+  </section>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
