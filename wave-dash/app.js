@@ -51,27 +51,75 @@ const W = canvas.width;
 const H = canvas.height;
 const PROFILE_KEY = "wdash-profile";
 const LEGACY_BEST_KEY = "wdash-best";
+const OBSTACLE_CLEAR_POINTS = 100;
 
 const SPRITES = [
-  { id: "dart", name: "Dart", cost: 0 },
-  { id: "nova", name: "Nova", cost: 260 },
-  { id: "blade", name: "Blade", cost: 540 },
-  { id: "void", name: "Void", cost: 920 },
+  { id: "dart", name: "Dart", cost: 0, style: "dart" },
+  { id: "nova", name: "Nova", cost: 150, style: "orb" },
+  { id: "blade", name: "Blade", cost: 300, style: "blade" },
+  { id: "void", name: "Void", cost: 500, style: "box" },
+  { id: "chevron", name: "Chevron", cost: 800, style: "chevron" },
+  { id: "stingray", name: "Stingray", cost: 1200, style: "dart" },
+  { id: "halo", name: "Halo", cost: 1800, style: "orb" },
+  { id: "razor", name: "Razor", cost: 2600, style: "blade" },
+  { id: "mono", name: "Mono", cost: 3500, style: "box" },
+  { id: "viper", name: "Viper", cost: 5000, style: "chevron" },
+  { id: "arc", name: "Arc", cost: 7000, style: "orb" },
+  { id: "scythe", name: "Scythe", cost: 9500, style: "blade" },
+  { id: "ion", name: "Ion", cost: 13000, style: "dart" },
+  { id: "prism", name: "Prism", cost: 18000, style: "box" },
+  { id: "falcon", name: "Falcon", cost: 25000, style: "chevron" },
+  { id: "ghost", name: "Ghost", cost: 35000, style: "orb" },
+  { id: "sting", name: "Sting", cost: 50000, style: "blade" },
+  { id: "flux", name: "Flux", cost: 70000, style: "dart" },
+  { id: "wraith", name: "Wraith", cost: 90000, style: "box" },
+  { id: "oracle", name: "Oracle", cost: 100000, style: "chevron" },
 ];
 
 const TRAILS = [
-  { id: "solid", name: "Solid Line", cost: 0 },
-  { id: "dashed", name: "Dashed", cost: 220 },
-  { id: "neon", name: "Neon", cost: 470 },
-  { id: "rainbow", name: "Rainbow", cost: 900 },
+  { id: "solid", name: "Solid Line", cost: 0, style: "solid" },
+  { id: "dashed", name: "Dashed", cost: 150, style: "dashed" },
+  { id: "neon", name: "Neon", cost: 300, style: "neon" },
+  { id: "rainbow", name: "Rainbow", cost: 500, style: "rainbow" },
+  { id: "pulse", name: "Pulse", cost: 800, style: "pulse" },
+  { id: "spark", name: "Spark", cost: 1200, style: "spark" },
+  { id: "comet", name: "Comet", cost: 1800, style: "neon" },
+  { id: "glow", name: "Glow", cost: 2600, style: "neon" },
+  { id: "trace", name: "Trace", cost: 3500, style: "solid" },
+  { id: "drift", name: "Drift", cost: 5000, style: "dashed" },
+  { id: "flash", name: "Flash", cost: 7000, style: "pulse" },
+  { id: "arc-line", name: "Arc Line", cost: 9500, style: "solid" },
+  { id: "signal", name: "Signal", cost: 13000, style: "dashed" },
+  { id: "ember", name: "Ember", cost: 18000, style: "spark" },
+  { id: "glass", name: "Glass", cost: 25000, style: "neon" },
+  { id: "aura", name: "Aura", cost: 35000, style: "pulse" },
+  { id: "flare", name: "Flare", cost: 50000, style: "spark" },
+  { id: "strobe", name: "Strobe", cost: 70000, style: "dashed" },
+  { id: "spectrum", name: "Spectrum", cost: 90000, style: "rainbow" },
+  { id: "celestial", name: "Celestial", cost: 100000, style: "rainbow" },
 ];
 
 const COLORS = [
   { id: "amber", name: "Amber", cost: 0, primary: "#ffd166", accent: "#ff5d73", trail: "rgba(115,242,255,0.95)", glow: "rgba(80,245,255,0.25)" },
-  { id: "mint", name: "Mint", cost: 260, primary: "#8df5c7", accent: "#45d6a0", trail: "rgba(141,245,199,0.95)", glow: "rgba(118,248,219,0.25)" },
-  { id: "crimson", name: "Crimson", cost: 420, primary: "#ff8f8f", accent: "#ff4d6d", trail: "rgba(255,120,120,0.95)", glow: "rgba(255,90,130,0.26)" },
-  { id: "violet", name: "Violet", cost: 600, primary: "#b69cff", accent: "#7f5af0", trail: "rgba(186,158,255,0.95)", glow: "rgba(166,134,255,0.24)" },
-  { id: "plasma", name: "Plasma", cost: 820, primary: "#7cf6ff", accent: "#2cc9ff", trail: "rgba(124,246,255,0.95)", glow: "rgba(83,224,255,0.28)" },
+  { id: "mint", name: "Mint", cost: 150, primary: "#8df5c7", accent: "#45d6a0", trail: "rgba(141,245,199,0.95)", glow: "rgba(118,248,219,0.25)" },
+  { id: "crimson", name: "Crimson", cost: 300, primary: "#ff8f8f", accent: "#ff4d6d", trail: "rgba(255,120,120,0.95)", glow: "rgba(255,90,130,0.26)" },
+  { id: "violet", name: "Violet", cost: 500, primary: "#b69cff", accent: "#7f5af0", trail: "rgba(186,158,255,0.95)", glow: "rgba(166,134,255,0.24)" },
+  { id: "plasma", name: "Plasma", cost: 800, primary: "#7cf6ff", accent: "#2cc9ff", trail: "rgba(124,246,255,0.95)", glow: "rgba(83,224,255,0.28)" },
+  { id: "ember", name: "Ember", cost: 1200, primary: "#ffb26b", accent: "#ff7a4f", trail: "rgba(255,178,107,0.95)", glow: "rgba(255,140,90,0.25)" },
+  { id: "glacier", name: "Glacier", cost: 1800, primary: "#9bdcff", accent: "#5aa6ff", trail: "rgba(155,220,255,0.95)", glow: "rgba(120,190,255,0.26)" },
+  { id: "lime", name: "Lime", cost: 2600, primary: "#b8ff6b", accent: "#69d64f", trail: "rgba(184,255,107,0.95)", glow: "rgba(150,230,90,0.25)" },
+  { id: "ruby", name: "Ruby", cost: 3500, primary: "#ff7a8a", accent: "#d63a55", trail: "rgba(255,122,138,0.95)", glow: "rgba(230,80,110,0.25)" },
+  { id: "cobalt", name: "Cobalt", cost: 5000, primary: "#7aa6ff", accent: "#3a5bd6", trail: "rgba(122,166,255,0.95)", glow: "rgba(90,130,230,0.25)" },
+  { id: "aqua", name: "Aqua", cost: 7000, primary: "#63f0ff", accent: "#2aa8b5", trail: "rgba(99,240,255,0.95)", glow: "rgba(70,210,220,0.25)" },
+  { id: "sunset", name: "Sunset", cost: 9500, primary: "#ffb1a3", accent: "#ff6f91", trail: "rgba(255,177,163,0.95)", glow: "rgba(255,120,150,0.25)" },
+  { id: "orchid", name: "Orchid", cost: 13000, primary: "#e3a2ff", accent: "#a35bd6", trail: "rgba(227,162,255,0.95)", glow: "rgba(190,120,230,0.25)" },
+  { id: "graphite", name: "Graphite", cost: 18000, primary: "#b0b8c7", accent: "#5b667a", trail: "rgba(176,184,199,0.95)", glow: "rgba(140,150,170,0.25)" },
+  { id: "coral", name: "Coral", cost: 25000, primary: "#ff9f7a", accent: "#ff5f3a", trail: "rgba(255,159,122,0.95)", glow: "rgba(255,120,90,0.25)" },
+  { id: "jade", name: "Jade", cost: 35000, primary: "#6bffb3", accent: "#2dc984", trail: "rgba(107,255,179,0.95)", glow: "rgba(70,220,150,0.25)" },
+  { id: "steel", name: "Steel", cost: 50000, primary: "#9bb6cc", accent: "#4f6f8a", trail: "rgba(155,182,204,0.95)", glow: "rgba(120,150,175,0.25)" },
+  { id: "ultraviolet", name: "Ultraviolet", cost: 70000, primary: "#7a6bff", accent: "#4430d9", trail: "rgba(122,107,255,0.95)", glow: "rgba(90,80,230,0.25)" },
+  { id: "aurora", name: "Aurora", cost: 90000, primary: "#7dffea", accent: "#31c9b6", trail: "rgba(125,255,234,0.95)", glow: "rgba(90,220,200,0.25)" },
+  { id: "eclipse", name: "Eclipse", cost: 100000, primary: "#f2f2ff", accent: "#202235", trail: "rgba(242,242,255,0.95)", glow: "rgba(200,200,230,0.25)" },
 ];
 
 let state = "idle";
@@ -553,6 +601,7 @@ function spawnObstacle() {
       w: rand(52, 74),
       center: world.center,
       gap: rand(125, 170),
+      scored: false,
     });
   } else if (roll < 0.74) {
     world.obstacles.push({
@@ -564,6 +613,7 @@ function spawnObstacle() {
       freq: rand(1.2, 2.5),
       phase: rand(0, Math.PI * 2),
       gap: rand(120, 165),
+      scored: false,
     });
   } else if (roll < 0.92) {
     world.obstacles.push({
@@ -575,6 +625,7 @@ function spawnObstacle() {
       pulse: rand(12, 35),
       freq: rand(1.8, 3.2),
       phase: rand(0, Math.PI * 2),
+      scored: false,
     });
   } else {
     world.obstacles.push({
@@ -588,6 +639,7 @@ function spawnObstacle() {
       swayAmp: rand(18, 48),
       swayFreq: rand(1.1, 2.2),
       phase: rand(0, Math.PI * 2),
+      scored: false,
     });
   }
 
@@ -648,6 +700,13 @@ function pointSegmentDistanceSq(px, py, ax, ay, bx, by) {
   return distSq(px, py, qx, qy);
 }
 
+function obstacleRightEdge(obstacle) {
+  if (obstacle.kind === "spinner") {
+    return obstacle.x + obstacle.armLen + obstacle.radius;
+  }
+  return obstacle.x + obstacle.w;
+}
+
 function update(dt) {
   if (state !== "running") return;
 
@@ -682,6 +741,14 @@ function update(dt) {
 
   for (const pickup of world.pickups) {
     pickup.x -= world.scroll * dt;
+  }
+
+  for (const obstacle of world.obstacles) {
+    if (!obstacle.scored && obstacleRightEdge(obstacle) < player.x - player.r) {
+      obstacle.scored = true;
+      score += OBSTACLE_CLEAR_POINTS;
+      shopMsg.textContent = `Obstacle cleared +${OBSTACLE_CLEAR_POINTS} score`;
+    }
   }
 
   world.obstacles = world.obstacles.filter((obstacle) => obstacle.x > -120);
@@ -724,12 +791,10 @@ function update(dt) {
     const pickup = world.pickups[i];
     if (distSq(player.x, player.y, pickup.x, pickup.y) <= (player.r + pickup.r) ** 2) {
       score += pickup.value;
-      shopMsg.textContent = `Pickup +${pickup.value} score`;
+      shopMsg.textContent = `Coin +${pickup.value} score`;
       world.pickups.splice(i, 1);
     }
   }
-
-  score += dt * 10 * world.speedScale;
 }
 
 function drawBackground(t) {
@@ -748,9 +813,11 @@ function drawTrail() {
   if (trailPoints.length < 2) return;
 
   const trail = profile.equippedTrail;
+  const trailDef = getItem(TRAILS, trail);
+  const trailStyle = trailDef?.style || trail;
   const color = getItem(COLORS, profile.equippedColor) || COLORS[0];
 
-  if (trail === "rainbow") {
+  if (trailStyle === "rainbow") {
     for (let i = 1; i < trailPoints.length; i++) {
       const a = trailPoints[i - 1];
       const b = trailPoints[i];
@@ -769,7 +836,7 @@ function drawTrail() {
   ctx.moveTo(trailPoints[0].x, trailPoints[0].y);
   for (let i = 1; i < trailPoints.length; i++) ctx.lineTo(trailPoints[i].x, trailPoints[i].y);
 
-  if (trail === "dashed") {
+  if (trailStyle === "dashed") {
     ctx.setLineDash([10, 8]);
     ctx.strokeStyle = color.trail;
     ctx.lineWidth = 2.4;
@@ -778,13 +845,38 @@ function drawTrail() {
     return;
   }
 
-  if (trail === "neon") {
+  if (trailStyle === "neon") {
     ctx.strokeStyle = color.glow;
     ctx.lineWidth = 8;
     ctx.stroke();
     ctx.strokeStyle = color.trail;
     ctx.lineWidth = 2.6;
     ctx.stroke();
+    return;
+  }
+
+  if (trailStyle === "pulse") {
+    const pulse = 2.2 + Math.sin(world.time * 8) * 1.2;
+    ctx.strokeStyle = color.glow;
+    ctx.lineWidth = pulse + 5;
+    ctx.stroke();
+    ctx.strokeStyle = color.trail;
+    ctx.lineWidth = pulse;
+    ctx.stroke();
+    return;
+  }
+
+  if (trailStyle === "spark") {
+    ctx.strokeStyle = color.trail;
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+    ctx.fillStyle = color.trail;
+    for (let i = 0; i < trailPoints.length; i += 5) {
+      const p = trailPoints[i];
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
     return;
   }
 
@@ -844,13 +936,15 @@ function drawPickups() {
 function drawPlayer() {
   const angle = hold ? -Math.PI * 0.25 : Math.PI * 0.25;
   const sprite = profile.equippedSprite;
+  const spriteDef = getItem(SPRITES, sprite);
+  const spriteStyle = spriteDef?.style || sprite;
   const color = getItem(COLORS, profile.equippedColor) || COLORS[0];
 
   ctx.save();
   ctx.translate(player.x, player.y);
   ctx.rotate(angle);
 
-  if (sprite === "nova") {
+  if (spriteStyle === "orb") {
     ctx.fillStyle = color.primary;
     ctx.beginPath();
     ctx.arc(0, 0, 9, 0, Math.PI * 2);
@@ -859,7 +953,7 @@ function drawPlayer() {
     ctx.beginPath();
     ctx.arc(2, -2, 3, 0, Math.PI * 2);
     ctx.fill();
-  } else if (sprite === "blade") {
+  } else if (spriteStyle === "blade") {
     ctx.fillStyle = color.primary;
     ctx.beginPath();
     ctx.moveTo(12, 0);
@@ -868,11 +962,25 @@ function drawPlayer() {
     ctx.lineTo(0, 9);
     ctx.closePath();
     ctx.fill();
-  } else if (sprite === "void") {
+  } else if (spriteStyle === "box") {
     ctx.fillStyle = color.primary;
     ctx.fillRect(-8, -8, 16, 16);
     ctx.fillStyle = color.accent;
     ctx.fillRect(-3, -3, 6, 6);
+  } else if (spriteStyle === "chevron") {
+    ctx.strokeStyle = color.primary;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(10, 0);
+    ctx.lineTo(-6, -8);
+    ctx.lineTo(-2, 0);
+    ctx.lineTo(-6, 8);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.fillStyle = color.accent;
+    ctx.beginPath();
+    ctx.arc(-4, 0, 2.2, 0, Math.PI * 2);
+    ctx.fill();
   } else {
     ctx.fillStyle = color.primary;
     ctx.beginPath();
