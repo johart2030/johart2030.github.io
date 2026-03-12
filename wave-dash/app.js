@@ -14,6 +14,7 @@ import {
   doc,
   getDoc,
   getFirestore,
+  onSnapshot,
   serverTimestamp,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
@@ -129,6 +130,8 @@ let last = performance.now();
 let uid = null;
 let auth = null;
 let db = null;
+let unsubscribeProfile = null;
+let saveTimer = null;
 
 let profile = loadLocalProfile();
 let best = profile.bestScore;
@@ -225,6 +228,10 @@ if (validFirebaseConfig(firebaseConfig)) {
       authState.textContent = "Guest mode (login optional)";
       openAuthBtn.textContent = "Login";
       logoutBtn.disabled = true;
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+        unsubscribeProfile = null;
+      }
     }
   });
 } else {
@@ -279,6 +286,7 @@ function normalizeProfile(data) {
   const spriteIds = idsFrom(SPRITES);
   const trailIds = idsFrom(TRAILS);
   const colorIds = idsFrom(COLORS);
+  const updatedAt = coerceTimestampMs(data?.updatedAt);
   const normalized = {
     bestScore: Math.max(0, Number(data?.bestScore || 0)),
     lastScore: Math.max(0, Number(data?.lastScore || 0)),
@@ -291,7 +299,7 @@ function normalizeProfile(data) {
     equippedSprite: String(data?.equippedSprite || "dart"),
     equippedTrail: String(data?.equippedTrail || "solid"),
     equippedColor: String(data?.equippedColor || "amber"),
-    updatedAt: Math.max(0, Number(data?.updatedAt || 0)),
+    updatedAt,
   };
 
   if (!normalized.ownedSprites.includes(normalized.equippedSprite)) normalized.equippedSprite = "dart";
@@ -299,6 +307,14 @@ function normalizeProfile(data) {
   if (!normalized.ownedColors.includes(normalized.equippedColor)) normalized.equippedColor = "amber";
 
   return normalized;
+}
+
+function coerceTimestampMs(value) {
+  if (!value) return 0;
+  if (typeof value === "number") return Math.max(0, value);
+  if (typeof value?.toMillis === "function") return value.toMillis();
+  if (typeof value?.seconds === "number") return Math.max(0, value.seconds * 1000);
+  return 0;
 }
 
 function loadLocalProfile() {
@@ -371,6 +387,21 @@ async function loadPlayerData() {
       },
       { merge: true }
     );
+
+    if (unsubscribeProfile) unsubscribeProfile();
+    unsubscribeProfile = onSnapshot(ref, (liveSnap) => {
+      if (!liveSnap.exists()) return;
+      const liveProfile = normalizeProfile(liveSnap.data().profile);
+      const merged = mergeProfiles(profile, liveProfile);
+      if (merged.updatedAt !== profile.updatedAt) {
+        profile = normalizeProfile(merged);
+        best = profile.bestScore;
+        bestEl.textContent = String(best);
+        coinsEl.textContent = String(profile.coins);
+        persistLocalProfile();
+        refreshShopUi();
+      }
+    });
   } catch (err) {
     authState.textContent = `Signed in (sync failed: ${err.code || "unknown-error"})`;
   }
@@ -390,6 +421,15 @@ async function savePlayerData() {
   } catch (err) {
     authState.textContent = `Signed in (autosave failed: ${err.code || "unknown-error"})`;
   }
+}
+
+function queueSave() {
+  if (!enableCloudSave || !uid || !db) return;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    void savePlayerData();
+  }, 600);
 }
 
 function getItem(items, id) {
@@ -515,7 +555,7 @@ function shopAction(type) {
   coinsEl.textContent = String(profile.coins);
   persistLocalProfile();
   refreshShopUi();
-  void savePlayerData();
+  queueSave();
 }
 
 spriteSelect.addEventListener("change", () => updateActionButton("sprite"));
@@ -577,7 +617,7 @@ function lose() {
   const rounded = Math.floor(score);
   applyRunResult(rounded);
   shopMsg.textContent = `Run ended: +${rounded} points.`;
-  void savePlayerData();
+  queueSave();
   showOverlay("Crashed", `Score ${rounded}. Press Space or click to restart.`);
 }
 
@@ -1051,6 +1091,11 @@ window.addEventListener("keyup", (e) => {
 canvas.addEventListener("pointerdown", onPress);
 window.addEventListener("pointerup", onRelease);
 window.addEventListener("blur", onRelease);
+window.addEventListener("beforeunload", () => {
+  if (profile.updatedAt) {
+    void savePlayerData();
+  }
+});
 
 refreshShopUi();
 hardReset();
