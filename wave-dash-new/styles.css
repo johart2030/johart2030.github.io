@@ -322,6 +322,10 @@ canvas {
   gap: 0.45rem;
 }
 
+#roomListSelect {
+  width: 100%;
+}
+
 .close-btn {
   position: absolute;
   top: 0.6rem;

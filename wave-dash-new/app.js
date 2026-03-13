@@ -89,6 +89,7 @@ const roomStartBtn = document.getElementById("roomStartBtn");
 const roomLeaveBtn = document.getElementById("roomLeaveBtn");
 const roomStatus = document.getElementById("roomStatus");
 const roomCodeDisplay = document.getElementById("roomCodeDisplay");
+const roomListSelect = document.getElementById("roomListSelect");
 
 const W = canvas.width;
 const H = canvas.height;
@@ -99,7 +100,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 2;
+const SITE_VERSION = 13;
 
 const SPRITES = [
   { id: "dart", name: "Dart", cost: 0, style: "dart" },
@@ -195,6 +196,7 @@ let mpOwnerId = null;
 let mpTrails = new Map();
 let localDistance = 0;
 let leaderboardUnsub = null;
+let roomListUnsub = null;
 let editorEnabled = false;
 let editorArmed = false;
 let editorLevel = [];
@@ -216,6 +218,11 @@ const world = {
   time: 0,
   sharedSeed: null,
   sharedStartMs: null,
+  raceStartLocalMs: null,
+  raceId: 0,
+  raceActiveId: 0,
+  joinTimeSec: 0,
+  publicStartOverrideMs: null,
   spawnIndex: 0,
   awaitingRaceStart: false,
 };
@@ -337,19 +344,26 @@ mpToggleBtn.addEventListener("click", () => {
     return;
   }
   if (mpEnabled) stopMultiplayer();
-  else startMultiplayer(MULTI_PUBLIC_ROOM_ID, { autoStart: true });
+  else {
+    startMultiplayer(MULTI_PUBLIC_ROOM_ID, { autoStart: true });
+  }
 });
 
 mpRoomBtn.addEventListener("click", () => {
   roomModal.classList.remove("hidden");
+  startRoomList();
 });
 
 closeRoomBtn.addEventListener("click", () => {
   roomModal.classList.add("hidden");
+  stopRoomList();
 });
 
 roomModal.addEventListener("click", (e) => {
-  if (e.target === roomModal) roomModal.classList.add("hidden");
+  if (e.target === roomModal) {
+    roomModal.classList.add("hidden");
+    stopRoomList();
+  }
 });
 
 openAuthBtn.addEventListener("click", () => {
@@ -447,12 +461,16 @@ function persistLocalProfile() {
   localStorage.setItem(LEGACY_BEST_KEY, String(profile.bestScore));
 }
 
-async function initSharedRoom(roomRef) {
+async function initSharedRoom(roomRef, { allowStartIfMissing } = {}) {
   try {
     const seed = Math.floor(Math.random() * 1e9) + 1;
     await runTransaction(roomRef, (current) => {
       const next = { ...(current || {}) };
       if (!next.seed) next.seed = seed;
+      if (allowStartIfMissing && !next.startAt) {
+        next.startAt = rtdbServerTimestamp();
+        next.raceId = (Number(current?.raceId || 0) + 1) || 1;
+      }
       return next;
     });
     const snap = await dbGet(roomRef);
@@ -462,13 +480,29 @@ async function initSharedRoom(roomRef) {
         world.sharedSeed = Number(data.seed);
         const startAtMs = coerceTimestampMs(data.startAt);
         if (startAtMs) {
+          if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
           world.sharedStartMs = startAtMs;
-          world.awaitingRaceStart = true;
-          prepareRaceStart();
-        } else {
-          world.sharedStartMs = null;
+          world.raceStartLocalMs = null;
           world.awaitingRaceStart = false;
+          {
+            const now = Date.now() + rtdbOffsetMs;
+            world.joinTimeSec = Math.max(0, (now - world.sharedStartMs) / 1000);
+          }
+          hideOverlay();
+        } else {
+          world.raceStartLocalMs = startAtMs;
+          world.sharedStartMs = startAtMs + RACE_COUNTDOWN_SEC * 1000;
+          world.raceActiveId = 0;
+          world.awaitingRaceStart = true;
+          world.joinTimeSec = 0;
+          prepareRaceStart();
         }
+      } else {
+        world.sharedStartMs = null;
+        world.awaitingRaceStart = false;
+        world.joinTimeSec = 0;
+        showOverlay("Waiting", "Waiting for the race to start.");
+      }
       }
     }
     world.spawnIndex = 0;
@@ -485,13 +519,19 @@ async function loadRoomState(roomRef) {
       if (data.seed) {
         world.sharedSeed = Number(data.seed);
         const startAtMs = coerceTimestampMs(data.startAt);
-        if (startAtMs) {
+        if (startAtMs && mpRoomId === MULTI_PUBLIC_ROOM_ID) {
           world.sharedStartMs = startAtMs;
-          world.awaitingRaceStart = true;
-          prepareRaceStart();
+          world.awaitingRaceStart = false;
+          if (!world.publicStartOverrideMs) {
+            const now = Date.now() + rtdbOffsetMs;
+            world.joinTimeSec = Math.max(0, (now - world.sharedStartMs) / 1000);
+          }
+          hideOverlay();
         } else {
           world.sharedStartMs = null;
           world.awaitingRaceStart = false;
+          world.joinTimeSec = 0;
+          showOverlay("Waiting", "Waiting for the race to start.");
         }
       }
       mpOwnerId = data.ownerId || mpOwnerId;
@@ -505,10 +545,18 @@ async function resetRoomSeed(roomRef) {
   try {
     await runTransaction(roomRef, (current) => {
       const next = { ...(current || {}) };
+      if (!next.seed) next.seed = Math.floor(Math.random() * 1e9) + 1;
       next.startAt = rtdbServerTimestamp();
       next.raceId = (Number(current?.raceId || 0) + 1) || 1;
       return next;
     });
+    const now = Date.now() + rtdbOffsetMs;
+    world.raceId += 1;
+    world.raceStartLocalMs = now;
+    world.sharedStartMs = now + RACE_COUNTDOWN_SEC * 1000;
+    world.awaitingRaceStart = true;
+    world.raceActiveId = 0;
+    prepareRaceStart();
   } catch {
     roomStatus.textContent = "Start failed.";
   }
@@ -567,10 +615,11 @@ async function createRoom() {
   const code = generateRoomCode();
   const roomRef = dbRef(rtdb, `rooms/${code}`);
   const ownerId = getMultiplayerId();
+  const seed = Math.floor(Math.random() * 1e9) + 1;
   await dbUpdate(roomRef, {
     ownerId,
     createdAt: rtdbServerTimestamp(),
-    seed: null,
+    seed,
     startAt: null,
     raceId: 0,
   });
@@ -580,7 +629,8 @@ async function createRoom() {
 
 async function joinRoom() {
   if (!rtdb || !uid) return;
-  const code = roomCodeInput.value.trim().toUpperCase();
+  const code =
+    roomCodeInput.value.trim().toUpperCase() || roomListSelect.value.trim().toUpperCase();
   if (!code) {
     roomStatus.textContent = "Enter a room code.";
     return;
@@ -599,6 +649,36 @@ async function joinRoom() {
 function leaveRoom() {
   stopMultiplayer();
   setRoomUiState({ inRoom: false, owner: false, code: "" });
+}
+
+function startRoomList() {
+  if (!rtdb || roomListUnsub) return;
+  const roomsRef = dbRef(rtdb, "rooms");
+  roomListUnsub = onValue(roomsRef, (snap) => {
+    roomListSelect.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Select a room";
+    roomListSelect.appendChild(placeholder);
+
+    if (!snap.exists()) return;
+    const rooms = snap.val() || {};
+    for (const [code, data] of Object.entries(rooms)) {
+      if (!code || code === MULTI_PUBLIC_ROOM_ID) continue;
+      const count = data.players ? Object.keys(data.players).length : 0;
+      const option = document.createElement("option");
+      option.value = code;
+      option.textContent = `${code} (${count} players)`;
+      roomListSelect.appendChild(option);
+    }
+  });
+}
+
+function stopRoomList() {
+  if (roomListUnsub) {
+    roomListUnsub();
+    roomListUnsub = null;
+  }
 }
 
 function setEditorEnabled(value) {
@@ -801,13 +881,22 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
   mpRoomRef = dbRef(rtdb, `rooms/${roomId}`);
   mpPlayerRef = dbRef(rtdb, `rooms/${roomId}/players/${mpPlayerId}`);
   mpStatus.textContent = "Multiplayer: Connecting...";
+  world.publicStartOverrideMs = null;
+  world.joinTimeSec = 0;
   world.obstacles = [];
   world.pickups = [];
   world.spawnIndex = 0;
   world.spawnTimer = 0;
+  world.speedScale = 1;
+  world.scroll = 260;
+  world.speedScale = 1;
+  world.scroll = 260;
+  state = "idle";
+  resetPlayerToCenter("Waiting for the race to start.");
 
   if (autoStart) {
-    void initSharedRoom(mpRoomRef);
+    const allowStartIfMissing = roomId === MULTI_PUBLIC_ROOM_ID;
+    void initSharedRoom(mpRoomRef, { allowStartIfMissing });
   } else {
     void loadRoomState(mpRoomRef);
   }
@@ -817,6 +906,7 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
     const data = snap.val();
     const seed = Number(data.seed || 0);
     const startAtMs = coerceTimestampMs(data.startAt);
+    const raceId = Number(data.raceId || 0);
     if (seed && seed !== world.sharedSeed) {
       world.sharedSeed = seed;
       world.spawnIndex = 0;
@@ -825,15 +915,89 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
       world.pickups = [];
       world.center = H * 0.5;
     }
-    if (startAtMs && startAtMs !== world.sharedStartMs) {
-      world.sharedStartMs = startAtMs;
+    if (raceId && raceId !== world.raceId) {
+      world.raceId = raceId;
+      world.raceActiveId = 0;
+        if (startAtMs) {
+          if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+            world.sharedStartMs = startAtMs;
+            world.raceStartLocalMs = null;
+            if (!world.publicStartOverrideMs) {
+              const now = Date.now() + rtdbOffsetMs;
+              world.joinTimeSec = Math.max(0, (now - world.sharedStartMs) / 1000);
+            }
+          } else {
+            world.raceStartLocalMs = startAtMs;
+            world.sharedStartMs = startAtMs + RACE_COUNTDOWN_SEC * 1000;
+            world.joinTimeSec = 0;
+        }
+      } else {
+        const now = Date.now() + rtdbOffsetMs;
+        if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+          world.sharedStartMs = now;
+          world.raceStartLocalMs = null;
+          world.joinTimeSec = 0;
+        } else {
+          world.raceStartLocalMs = now;
+          world.sharedStartMs = now + RACE_COUNTDOWN_SEC * 1000;
+          world.joinTimeSec = 0;
+        }
+      }
       world.spawnIndex = 0;
       world.spawnTimer = 0;
       world.obstacles = [];
       world.pickups = [];
       world.center = H * 0.5;
-      world.awaitingRaceStart = true;
-      prepareRaceStart();
+      world.time = 0;
+      localDistance = 0;
+      world.speedScale = 1;
+      world.scroll = 260;
+      if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+        world.awaitingRaceStart = false;
+        hideOverlay();
+      } else {
+        const shouldCountdown = world.raceActiveId !== world.raceId;
+        world.awaitingRaceStart = shouldCountdown;
+        if (shouldCountdown) prepareRaceStart();
+      }
+    } else if (startAtMs && startAtMs !== world.raceStartLocalMs) {
+      if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+        world.sharedStartMs = startAtMs;
+        world.raceStartLocalMs = null;
+        if (!world.publicStartOverrideMs) {
+          const now = Date.now() + rtdbOffsetMs;
+          world.joinTimeSec = Math.max(0, (now - world.sharedStartMs) / 1000);
+        }
+      } else {
+        world.raceStartLocalMs = startAtMs;
+        world.sharedStartMs = startAtMs + RACE_COUNTDOWN_SEC * 1000;
+        world.joinTimeSec = 0;
+      }
+      world.raceActiveId = 0;
+      world.spawnIndex = 0;
+      world.spawnTimer = 0;
+      world.obstacles = [];
+      world.pickups = [];
+      world.center = H * 0.5;
+      world.time = 0;
+      localDistance = 0;
+      world.speedScale = 1;
+      world.scroll = 260;
+      if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+        world.awaitingRaceStart = false;
+        hideOverlay();
+      } else {
+        const shouldCountdown = world.raceActiveId !== world.raceId;
+        world.awaitingRaceStart = shouldCountdown;
+        if (shouldCountdown) prepareRaceStart();
+      }
+    } else if (!startAtMs && !world.raceStartLocalMs) {
+      world.sharedStartMs = null;
+      world.raceStartLocalMs = null;
+      world.awaitingRaceStart = false;
+      world.joinTimeSec = 0;
+      state = "idle";
+      resetPlayerToCenter("Waiting for the race to start.");
     }
     mpOwnerId = data.ownerId || mpOwnerId;
     if (mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
@@ -859,8 +1023,7 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
     // Sync remote trails with latest positions.
     for (const [id, data] of mpPlayers.entries()) {
       const offset = getPlayerOffset(id);
-      const dist = Number(data.dist || 0);
-      const x = player.x + (dist - localDistance) + offset;
+      const x = player.x + offset;
       const y = data.y || 0;
       const trail = mpTrails.get(id) || [];
       trail.push({ x, y, life: 0.8 });
@@ -904,6 +1067,8 @@ function stopMultiplayer() {
   }
   world.sharedSeed = null;
   world.sharedStartMs = null;
+  world.publicStartOverrideMs = null;
+  world.joinTimeSec = 0;
   world.spawnIndex = 0;
   world.awaitingRaceStart = false;
 }
@@ -1119,15 +1284,27 @@ function startGame() {
   state = "running";
   score = 0;
   localClears = 0;
-  localDistance = 0;
-  world.obstacles.length = 0;
-  world.pickups.length = 0;
-  world.spawnTimer = 0;
-  world.speedScale = 1;
-  world.scroll = 260;
-  world.center = H * 0.5;
-  world.time = 0;
-  world.spawnIndex = 0;
+  const isPublicLive =
+    mpEnabled &&
+    mpRoomId === MULTI_PUBLIC_ROOM_ID &&
+    world.sharedStartMs &&
+    !world.publicStartOverrideMs;
+  if (!isPublicLive) {
+    localDistance = 0;
+    world.obstacles.length = 0;
+    world.pickups.length = 0;
+    world.spawnTimer = 0;
+    world.speedScale = 1;
+    world.scroll = 260;
+    world.center = H * 0.5;
+    world.time = 0;
+    world.spawnIndex = 0;
+    if (mpEnabled) {
+      world.obstacles.length = 0;
+      world.pickups.length = 0;
+      world.spawnIndex = 0;
+    }
+  }
   trailPoints.length = 0;
   player.y = H * 0.5;
   player.vy = 0;
@@ -1148,6 +1325,10 @@ function prepareRaceStart() {
   world.center = H * 0.5;
   world.time = 0;
   world.spawnIndex = 0;
+  world.speedScale = 1;
+  world.scroll = 260;
+  world.raceActiveId = 0;
+  world.joinTimeSec = 0;
   trailPoints.length = 0;
   player.y = H * 0.5;
   player.vy = 0;
@@ -1157,6 +1338,13 @@ function prepareRaceStart() {
 function computeSharedDistance(elapsedSec) {
   // speedScale = 1 + 0.064 * t, scroll = 260 * speedScale
   return 260 * (elapsedSec + 0.032 * elapsedSec * elapsedSec);
+}
+
+function resetPlayerToCenter(message) {
+  player.y = H * 0.5;
+  player.vy = 0;
+  hold = false;
+  if (message) showOverlay("Waiting", message);
 }
 
 function applyRunResult(runScore) {
@@ -1194,6 +1382,24 @@ function lose() {
   applyRunResult(rounded);
   shopMsg.textContent = `Run ended: +${rounded} points.`;
   queueSave();
+  world.speedScale = 1;
+  world.scroll = 260;
+  if (mpEnabled && mpRoomRef && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
+    // Restart race at the beginning for everyone in the room.
+    void resetRoomSeed(mpRoomRef);
+  } else if (mpEnabled && mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+    const now = Date.now() + rtdbOffsetMs;
+    world.publicStartOverrideMs = now;
+    world.sharedStartMs = world.sharedStartMs || now;
+    world.joinTimeSec = 0;
+    world.obstacles = [];
+    world.pickups = [];
+    world.spawnIndex = 0;
+    world.spawnTimer = 0;
+    world.center = H * 0.5;
+    world.time = 0;
+    localDistance = 0;
+  }
   showOverlay("Crashed", `Score ${rounded}. Press Space or click to restart.`);
 }
 
@@ -1275,6 +1481,7 @@ function spawnObstacle(rng = Math.random) {
       radius: randWith(rng, 10, 14),
       armLen: randWith(rng, 40, 58),
       angle: randWith(rng, 0, Math.PI * 2),
+      baseAngle: randWith(rng, 0, Math.PI * 2),
       spin: (rng() < 0.5 ? -1 : 1) * randWith(rng, 2.1, 3.4),
       baseY: randWith(rng, 90, H - 90),
       swayAmp: randWith(rng, 18, 48),
@@ -1297,12 +1504,15 @@ function spawnObstacle(rng = Math.random) {
 function spawnSharedObstacle(index) {
   if (!world.sharedSeed) return;
   const rng = makeSeededRng((world.sharedSeed ^ (index * 0x9e3779b9)) >>> 0);
+  const spawnT = index * world.spawnEvery;
   const center = clamp(90 + rng() * (H - 180), 90, H - 90);
   const roll = rng();
   if (roll < 0.38) {
     world.obstacles.push({
       kind: "gate",
       x: W + 70,
+      spawnX: W + 70,
+      spawnT,
       w: randWith(rng, 52, 74),
       center,
       gap: randWith(rng, 125, 170),
@@ -1312,6 +1522,8 @@ function spawnSharedObstacle(index) {
     world.obstacles.push({
       kind: "movingGate",
       x: W + 70,
+      spawnX: W + 70,
+      spawnT,
       w: randWith(rng, 54, 78),
       baseCenter: center,
       amp: randWith(rng, 22, 65),
@@ -1324,6 +1536,8 @@ function spawnSharedObstacle(index) {
     world.obstacles.push({
       kind: "pulseGate",
       x: W + 70,
+      spawnX: W + 70,
+      spawnT,
       w: randWith(rng, 56, 82),
       center,
       baseGap: randWith(rng, 130, 180),
@@ -1337,6 +1551,8 @@ function spawnSharedObstacle(index) {
     world.obstacles.push({
       kind: "corridor",
       x: W + 70,
+      spawnX: W + 70,
+      spawnT,
       w: randWith(rng, 140, 220),
       centerA: center,
       centerB,
@@ -1348,9 +1564,12 @@ function spawnSharedObstacle(index) {
     world.obstacles.push({
       kind: "spinner",
       x: W + 70,
+      spawnX: W + 70,
+      spawnT,
       radius: randWith(rng, 10, 14),
       armLen: randWith(rng, 40, 58),
       angle: randWith(rng, 0, Math.PI * 2),
+      baseAngle: randWith(rng, 0, Math.PI * 2),
       spin: (rng() < 0.5 ? -1 : 1) * randWith(rng, 2.1, 3.4),
       baseY: randWith(rng, 90, H - 90),
       swayAmp: randWith(rng, 18, 48),
@@ -1363,6 +1582,8 @@ function spawnSharedObstacle(index) {
   if (rng() < 0.55) {
     world.pickups.push({
       x: W + 95,
+      spawnX: W + 95,
+      spawnT,
       y: clamp(center + randWith(rng, -60, 60), 36, H - 36),
       r: 9,
       value: Math.floor(randWith(rng, 12, 32)),
@@ -1370,7 +1591,7 @@ function spawnSharedObstacle(index) {
   }
 }
 
-function gateState(obstacle) {
+function gateState(obstacle, timeSec) {
   if (obstacle.kind === "gate") {
     return { center: obstacle.center, gap: obstacle.gap };
   }
@@ -1378,7 +1599,7 @@ function gateState(obstacle) {
   if (obstacle.kind === "movingGate") {
     return {
       center: clamp(
-        obstacle.baseCenter + Math.sin(world.time * obstacle.freq + obstacle.phase) * obstacle.amp,
+        obstacle.baseCenter + Math.sin(timeSec * obstacle.freq + obstacle.phase) * obstacle.amp,
         70,
         H - 70
       ),
@@ -1389,7 +1610,7 @@ function gateState(obstacle) {
   return {
     center: obstacle.center,
     gap: clamp(
-      obstacle.baseGap + Math.sin(world.time * obstacle.freq + obstacle.phase) * obstacle.pulse,
+      obstacle.baseGap + Math.sin(timeSec * obstacle.freq + obstacle.phase) * obstacle.pulse,
       95,
       190
     ),
@@ -1436,9 +1657,13 @@ function update(dt) {
     if (mpSendCooldown <= 0) {
       mpSendCooldown = MULTI_PING_MS;
       let dist = localDistance;
-      if (mpEnabled && world.sharedStartMs) {
+      const effectiveStart =
+        mpRoomId === MULTI_PUBLIC_ROOM_ID && world.publicStartOverrideMs
+          ? world.publicStartOverrideMs
+          : world.sharedStartMs;
+      if (mpEnabled && effectiveStart) {
         const now = Date.now() + rtdbOffsetMs;
-        const elapsed = Math.max(0, (now - world.sharedStartMs) / 1000);
+        const elapsed = Math.max(0, (now - effectiveStart) / 1000);
         dist = computeSharedDistance(elapsed);
       }
       void dbUpdate(mpPlayerRef, {
@@ -1458,9 +1683,13 @@ function update(dt) {
   }
 
   if (mpEnabled && world.awaitingRaceStart) {
-    if (!world.sharedStartMs) return;
+    if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+      world.awaitingRaceStart = false;
+    }
+    const baseStart = world.raceStartLocalMs || world.sharedStartMs;
+    if (!baseStart) return;
     const now = Date.now() + rtdbOffsetMs;
-    const elapsed = (now - world.sharedStartMs) / 1000;
+    const elapsed = (now - baseStart) / 1000;
     const remaining = Math.max(0, RACE_COUNTDOWN_SEC - elapsed);
     if (remaining > 0) {
       const seconds = Math.ceil(remaining);
@@ -1469,20 +1698,38 @@ function update(dt) {
       return;
     }
     world.awaitingRaceStart = false;
+    if (world.raceId) world.raceActiveId = world.raceId;
     hideOverlay();
     startGame();
   }
 
-  if (state !== "running") return;
+  if (state !== "running") {
+    if (mpEnabled && !world.sharedStartMs) {
+      resetPlayerToCenter();
+    }
+    if (state === "dead") {
+      world.speedScale = 1;
+      world.scroll = 260;
+    }
+    return;
+  }
 
-  world.time += dt;
-  world.speedScale += dt * 0.064;
-  world.scroll = 260 * world.speedScale;
-  if (mpEnabled && world.sharedStartMs) {
+  let timeSec = world.time + dt;
+  const effectiveStart =
+    mpRoomId === MULTI_PUBLIC_ROOM_ID && world.publicStartOverrideMs
+      ? world.publicStartOverrideMs
+      : world.sharedStartMs;
+  if (mpEnabled && effectiveStart) {
     const now = Date.now() + rtdbOffsetMs;
-    const elapsed = Math.max(0, (now - world.sharedStartMs) / 1000);
-    localDistance = computeSharedDistance(elapsed);
+    timeSec = Math.max(0, (now - effectiveStart) / 1000);
+    world.speedScale = 1 + 0.064 * timeSec;
+    world.scroll = 260 * world.speedScale;
+    world.time = timeSec;
+    localDistance = computeSharedDistance(timeSec);
   } else {
+    world.time = timeSec;
+    world.speedScale += dt * 0.064;
+    world.scroll = 260 * world.speedScale;
     localDistance += world.scroll * dt;
   }
 
@@ -1504,19 +1751,24 @@ function update(dt) {
   if (editorEnabled && editorLevel.length > 0) {
     // Editor mode uses a fixed set of obstacles.
   } else if (mpEnabled) {
-    if (!world.sharedSeed || !world.sharedStartMs) {
+    if (!world.sharedSeed || !effectiveStart) {
       // Wait for shared seed/time to avoid mixed obstacle sets.
       return;
     }
     const now = Date.now() + rtdbOffsetMs;
-    const elapsed = (now - world.sharedStartMs) / 1000;
+    const elapsed = (now - effectiveStart) / 1000;
     const targetIndex = Math.floor(elapsed / world.spawnEvery);
-    // Prevent catch-up bursts that stack multiple obstacles in one area.
-    if (targetIndex - world.spawnIndex > 1) {
-      world.spawnIndex = targetIndex - 1;
-    }
-    if (world.spawnIndex < targetIndex) {
+    const distNow = computeSharedDistance(elapsed);
+    while (world.spawnIndex < targetIndex) {
       spawnSharedObstacle(world.spawnIndex);
+      const lastObstacle = world.obstacles[world.obstacles.length - 1];
+      if (lastObstacle && lastObstacle.spawnT !== undefined) {
+        const distThen = computeSharedDistance(lastObstacle.spawnT);
+        lastObstacle.x = (lastObstacle.spawnX || W + 70) - (distNow - distThen);
+        if (obstacleRightEdge(lastObstacle) < player.x - player.r) {
+          lastObstacle.scored = true;
+        }
+      }
       world.spawnIndex += 1;
     }
   } else if (world.spawnTimer >= world.spawnEvery) {
@@ -1525,12 +1777,31 @@ function update(dt) {
   }
 
   for (const obstacle of world.obstacles) {
-    obstacle.x -= world.scroll * dt;
-    if (obstacle.kind === "spinner") obstacle.angle += obstacle.spin * dt;
+    if (mpEnabled && effectiveStart && obstacle.spawnT !== undefined) {
+      const distNow = computeSharedDistance(world.time);
+      const distThen = computeSharedDistance(obstacle.spawnT);
+      obstacle.x = (obstacle.spawnX || W + 70) - (distNow - distThen);
+    } else {
+      obstacle.x -= world.scroll * dt;
+    }
+    if (obstacle.kind === "spinner") {
+      if (mpEnabled && effectiveStart) {
+        const base = obstacle.baseAngle || 0;
+        obstacle.angle = base + world.time * obstacle.spin;
+      } else {
+        obstacle.angle += obstacle.spin * dt;
+      }
+    }
   }
 
   for (const pickup of world.pickups) {
-    pickup.x -= world.scroll * dt;
+    if (mpEnabled && effectiveStart && pickup.spawnT !== undefined) {
+      const distNow = computeSharedDistance(world.time);
+      const distThen = computeSharedDistance(pickup.spawnT);
+      pickup.x = (pickup.spawnX || W + 95) - (distNow - distThen);
+    } else {
+      pickup.x -= world.scroll * dt;
+    }
   }
 
   if (mpEnabled) {
@@ -1546,6 +1817,15 @@ function update(dt) {
   }
 
   for (const obstacle of world.obstacles) {
+    if (
+      mpEnabled &&
+      world.sharedStartMs &&
+      obstacle.spawnT !== undefined &&
+      obstacle.spawnT < world.joinTimeSec
+    ) {
+      obstacle.scored = true;
+      continue;
+    }
     if (!obstacle.scored && obstacleRightEdge(obstacle) < player.x - player.r) {
       obstacle.scored = true;
       score += OBSTACLE_CLEAR_POINTS;
@@ -1583,7 +1863,7 @@ function update(dt) {
     if (obstacle.kind === "corridor") {
       stateNow = corridorGapAt(obstacle, player.x);
     } else {
-      stateNow = gateState(obstacle);
+      stateNow = gateState(obstacle, world.time);
     }
     const gapTop = stateNow.center - stateNow.gap * 0.5;
     const gapBottom = stateNow.center + stateNow.gap * 0.5;
@@ -1837,7 +2117,7 @@ function drawObstacle(obstacle) {
     return;
   }
 
-  const current = gateState(obstacle);
+  const current = gateState(obstacle, world.time);
   const topH = current.center - current.gap * 0.5;
   const botY = current.center + current.gap * 0.5;
 
@@ -1960,15 +2240,14 @@ function drawOtherPlayers() {
     const spriteId = data.sprite || "dart";
     const angle = data.vy < 0 ? -Math.PI * 0.25 : Math.PI * 0.25;
     const offset = getPlayerOffset(id);
-    const dist = Number(data.dist || 0);
-    const relX = player.x + (dist - localDistance);
+    const relX = player.x + offset;
     const trailId = data.trail || "solid";
     const remoteTrail = mpTrails.get(id) || [];
     if (remoteTrail.length > 1) {
       drawTrailById(trailId, color, remoteTrail);
     }
     ctx.save();
-    ctx.translate(relX + offset, data.y || 0);
+    ctx.translate(relX, data.y || 0);
     ctx.rotate(angle);
     ctx.globalAlpha = 0.55;
     drawSpriteById(spriteId, color);
@@ -1979,12 +2258,17 @@ function drawOtherPlayers() {
     ctx.fillStyle = "rgba(255,255,255,0.75)";
     ctx.font = "12px Segoe UI, Tahoma, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(name, relX + offset, (data.y || 0) - 16);
+    ctx.fillText(name, relX, (data.y || 0) - 16);
   }
 }
 
 function getPlayerOffset(id) {
-  return 0;
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) % 1000;
+  }
+  const lane = (hash % 3) - 1;
+  return lane * 16;
 }
 
 function drawSpriteById(id, color) {
@@ -2362,6 +2646,10 @@ function hideOverlay() {
 }
 
 function onPress() {
+  if (mpEnabled && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
+    hold = true;
+    return;
+  }
   hold = true;
   if (state === "idle" || state === "dead") startGame();
 }
