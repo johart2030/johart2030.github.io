@@ -460,9 +460,15 @@ async function initSharedRoom(roomRef) {
       const data = snap.val();
       if (data.seed) {
         world.sharedSeed = Number(data.seed);
-        world.sharedStartMs = coerceTimestampMs(data.startAt) || Date.now();
-        world.awaitingRaceStart = true;
-        prepareRaceStart();
+        const startAtMs = coerceTimestampMs(data.startAt);
+        if (startAtMs) {
+          world.sharedStartMs = startAtMs;
+          world.awaitingRaceStart = true;
+          prepareRaceStart();
+        } else {
+          world.sharedStartMs = null;
+          world.awaitingRaceStart = false;
+        }
       }
     }
     world.spawnIndex = 0;
@@ -476,11 +482,17 @@ async function loadRoomState(roomRef) {
     const snap = await dbGet(roomRef);
     if (snap.exists()) {
       const data = snap.val();
-      if (data.seed && data.startAt) {
+      if (data.seed) {
         world.sharedSeed = Number(data.seed);
-        world.sharedStartMs = coerceTimestampMs(data.startAt) || Date.now();
-        world.awaitingRaceStart = true;
-        prepareRaceStart();
+        const startAtMs = coerceTimestampMs(data.startAt);
+        if (startAtMs) {
+          world.sharedStartMs = startAtMs;
+          world.awaitingRaceStart = true;
+          prepareRaceStart();
+        } else {
+          world.sharedStartMs = null;
+          world.awaitingRaceStart = false;
+        }
       }
       mpOwnerId = data.ownerId || mpOwnerId;
     }
@@ -805,8 +817,15 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
     const data = snap.val();
     const seed = Number(data.seed || 0);
     const startAtMs = coerceTimestampMs(data.startAt);
-    if (seed && startAtMs && (seed !== world.sharedSeed || startAtMs !== world.sharedStartMs)) {
+    if (seed && seed !== world.sharedSeed) {
       world.sharedSeed = seed;
+      world.spawnIndex = 0;
+      world.spawnTimer = 0;
+      world.obstacles = [];
+      world.pickups = [];
+      world.center = H * 0.5;
+    }
+    if (startAtMs && startAtMs !== world.sharedStartMs) {
       world.sharedStartMs = startAtMs;
       world.spawnIndex = 0;
       world.spawnTimer = 0;
@@ -1135,6 +1154,11 @@ function prepareRaceStart() {
   showOverlay("Race Starting", `Race starts in ${RACE_COUNTDOWN_SEC}...`);
 }
 
+function computeSharedDistance(elapsedSec) {
+  // speedScale = 1 + 0.064 * t, scroll = 260 * speedScale
+  return 260 * (elapsedSec + 0.032 * elapsedSec * elapsedSec);
+}
+
 function applyRunResult(runScore) {
   profile.lastScore = runScore;
   profile.totalRuns += 1;
@@ -1411,13 +1435,19 @@ function update(dt) {
     mpSendCooldown -= dt * 1000;
     if (mpSendCooldown <= 0) {
       mpSendCooldown = MULTI_PING_MS;
+      let dist = localDistance;
+      if (mpEnabled && world.sharedStartMs) {
+        const now = Date.now() + rtdbOffsetMs;
+        const elapsed = Math.max(0, (now - world.sharedStartMs) / 1000);
+        dist = computeSharedDistance(elapsed);
+      }
       void dbUpdate(mpPlayerRef, {
         x: player.x,
         y: player.y,
         vy: player.vy,
         score: Math.floor(score),
         clears: localClears,
-        dist: Math.floor(localDistance),
+        dist: Math.floor(dist),
         sprite: profile.equippedSprite,
         trail: profile.equippedTrail,
         color: profile.equippedColor,
@@ -1448,7 +1478,13 @@ function update(dt) {
   world.time += dt;
   world.speedScale += dt * 0.064;
   world.scroll = 260 * world.speedScale;
-  localDistance += world.scroll * dt;
+  if (mpEnabled && world.sharedStartMs) {
+    const now = Date.now() + rtdbOffsetMs;
+    const elapsed = Math.max(0, (now - world.sharedStartMs) / 1000);
+    localDistance = computeSharedDistance(elapsed);
+  } else {
+    localDistance += world.scroll * dt;
+  }
 
   player.vy = hold ? -world.scroll : world.scroll;
   player.y += player.vy * dt;
