@@ -191,6 +191,7 @@ let localClears = 0;
 let mpRoomId = null;
 let mpOwnerId = null;
 let mpTrails = new Map();
+let localDistance = 0;
 let leaderboardUnsub = null;
 let editorEnabled = false;
 let editorArmed = false;
@@ -334,7 +335,7 @@ mpToggleBtn.addEventListener("click", () => {
     return;
   }
   if (mpEnabled) stopMultiplayer();
-  else startMultiplayer(MULTI_PUBLIC_ROOM_ID, { autoStart: true });
+  else startMultiplayer(MULTI_PUBLIC_ROOM_ID, { autoStart: true, resetSeed: false });
 });
 
 mpRoomBtn.addEventListener("click", () => {
@@ -444,14 +445,16 @@ function persistLocalProfile() {
   localStorage.setItem(LEGACY_BEST_KEY, String(profile.bestScore));
 }
 
-async function initSharedRoom(roomRef) {
+async function initSharedRoom(roomRef, { resetSeed } = {}) {
   try {
     const seed = Math.floor(Math.random() * 1e9);
     await runTransaction(roomRef, (current) => {
       const next = { ...(current || {}) };
-      next.seed = seed;
-      next.startAt = rtdbServerTimestamp();
-      next.raceId = (Number(current?.raceId || 0) + 1) || 1;
+      if (resetSeed || !next.seed) {
+        next.seed = seed;
+        next.startAt = rtdbServerTimestamp();
+        next.raceId = (Number(current?.raceId || 0) + 1) || 1;
+      }
       return next;
     });
     const snap = await dbGet(roomRef);
@@ -782,7 +785,7 @@ async function savePlayerData() {
   }
 }
 
-function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
+function startMultiplayer(roomId, { autoStart, ownerId, resetSeed } = {}) {
   mpEnabled = true;
   mpPlayerId = getMultiplayerId();
   mpRoomId = roomId;
@@ -796,7 +799,7 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
   world.spawnTimer = 0;
 
   if (autoStart) {
-    void initSharedRoom(mpRoomRef);
+    void initSharedRoom(mpRoomRef, { resetSeed: Boolean(resetSeed) });
   } else {
     void loadRoomState(mpRoomRef);
   }
@@ -841,7 +844,8 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
     // Sync remote trails with latest positions.
     for (const [id, data] of mpPlayers.entries()) {
       const offset = getPlayerOffset(id);
-      const x = (data.x || player.x) + offset;
+      const dist = Number(data.dist || 0);
+      const x = player.x + (dist - localDistance) + offset;
       const y = data.y || 0;
       const trail = mpTrails.get(id) || [];
       trail.push({ x, y, life: 0.8 });
@@ -1100,6 +1104,7 @@ function startGame() {
   state = "running";
   score = 0;
   localClears = 0;
+  localDistance = 0;
   world.obstacles.length = 0;
   world.pickups.length = 0;
   world.spawnTimer = 0;
@@ -1121,6 +1126,7 @@ function prepareRaceStart() {
   state = "idle";
   score = 0;
   localClears = 0;
+  localDistance = 0;
   world.obstacles = [];
   world.pickups = [];
   world.spawnTimer = 0;
@@ -1415,6 +1421,7 @@ function update(dt) {
         vy: player.vy,
         score: Math.floor(score),
         clears: localClears,
+        dist: Math.floor(localDistance),
         sprite: profile.equippedSprite,
         trail: profile.equippedTrail,
         color: profile.equippedColor,
@@ -1445,6 +1452,7 @@ function update(dt) {
   world.time += dt;
   world.speedScale += dt * 0.064;
   world.scroll = 260 * world.speedScale;
+  localDistance += world.scroll * dt;
 
   player.vy = hold ? -world.scroll : world.scroll;
   player.y += player.vy * dt;
@@ -1920,13 +1928,15 @@ function drawOtherPlayers() {
     const spriteId = data.sprite || "dart";
     const angle = data.vy < 0 ? -Math.PI * 0.25 : Math.PI * 0.25;
     const offset = getPlayerOffset(id);
+    const dist = Number(data.dist || 0);
+    const relX = player.x + (dist - localDistance);
     const trailId = data.trail || "solid";
     const remoteTrail = mpTrails.get(id) || [];
     if (remoteTrail.length > 1) {
       drawTrailById(trailId, color, remoteTrail);
     }
     ctx.save();
-    ctx.translate((data.x || player.x) + offset, data.y || 0);
+    ctx.translate(relX + offset, data.y || 0);
     ctx.rotate(angle);
     ctx.globalAlpha = 0.55;
     drawSpriteById(spriteId, color);
@@ -1937,7 +1947,7 @@ function drawOtherPlayers() {
     ctx.fillStyle = "rgba(255,255,255,0.75)";
     ctx.font = "12px Segoe UI, Tahoma, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(name, (data.x || player.x) + offset, (data.y || 0) - 16);
+    ctx.fillText(name, relX + offset, (data.y || 0) - 16);
   }
 }
 
