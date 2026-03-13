@@ -87,6 +87,7 @@
           <span id="mpStatus">Multiplayer: Off</span>
           <div class="game-mp-actions">
             <button id="mpToggleBtn">Multiplayer</button>
+            <button id="mpRoomBtn">Room</button>
             <button id="openAuthBtn">Login</button>
           </div>
         </div>
@@ -112,6 +113,22 @@
         <button id="googleLoginBtn">Sign in with Google</button>
         <button id="logoutBtn" disabled>Sign out</button>
       </div>
+    </div>
+  </section>
+
+  <section class="auth-modal hidden" id="roomModal">
+    <div class="auth-card">
+      <button class="close-btn" id="closeRoomBtn" aria-label="Close rooms">X</button>
+      <h2>Private Room</h2>
+      <p id="roomStatus">Create or join a room to race together.</p>
+      <div class="auth-actions">
+        <input id="roomCodeInput" type="text" placeholder="Room code" />
+        <button id="roomCreateBtn">Create Room</button>
+        <button id="roomJoinBtn">Join Room</button>
+        <button id="roomStartBtn" disabled>Start Race (Owner)</button>
+        <button id="roomLeaveBtn" disabled>Leave Room</button>
+      </div>
+      <p id="roomCodeDisplay"></p>
     </div>
   </section>
 

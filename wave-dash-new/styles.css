@@ -312,6 +312,12 @@ canvas {
   padding: 0.35rem 0.6rem;
 }
 
+#roomCodeDisplay {
+  margin: 0.6rem 0 0;
+  font-size: 0.95rem;
+  opacity: 0.85;
+}
+
 @media (max-width: 640px) {
   .shop-row {
     grid-template-columns: 1fr;

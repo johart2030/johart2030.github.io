@@ -31,6 +31,7 @@ import {
   onDisconnect,
   serverTimestamp as rtdbServerTimestamp,
   remove as dbRemove,
+  runTransaction,
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-database.js";
 import { enableCloudSave, firebaseConfig } from "./firebase-config.js";
 
@@ -77,15 +78,26 @@ const editorPanelToggleBtn = document.getElementById("editorPanelToggleBtn");
 const editorPanel = document.getElementById("editorPanel");
 const mpToggleBtn = document.getElementById("mpToggleBtn");
 const mpStatus = document.getElementById("mpStatus");
+const mpRoomBtn = document.getElementById("mpRoomBtn");
+const roomModal = document.getElementById("roomModal");
+const closeRoomBtn = document.getElementById("closeRoomBtn");
+const roomCodeInput = document.getElementById("roomCodeInput");
+const roomCreateBtn = document.getElementById("roomCreateBtn");
+const roomJoinBtn = document.getElementById("roomJoinBtn");
+const roomStartBtn = document.getElementById("roomStartBtn");
+const roomLeaveBtn = document.getElementById("roomLeaveBtn");
+const roomStatus = document.getElementById("roomStatus");
+const roomCodeDisplay = document.getElementById("roomCodeDisplay");
 
 const W = canvas.width;
 const H = canvas.height;
 const PROFILE_KEY = "wdash-profile";
 const LEGACY_BEST_KEY = "wdash-best";
 const OBSTACLE_CLEAR_POINTS = 100;
-const MULTI_ROOM_ID = "public";
+const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
+const RACE_COUNTDOWN_SEC = 3;
 
 const SPRITES = [
   { id: "dart", name: "Dart", cost: 0, style: "dart" },
@@ -164,6 +176,7 @@ let uid = null;
 let auth = null;
 let db = null;
 let rtdb = null;
+let rtdbOffsetMs = 0;
 let unsubscribeProfile = null;
 let saveTimer = null;
 let mpEnabled = false;
@@ -171,8 +184,12 @@ let mpPlayerId = null;
 let mpPlayerRef = null;
 let mpRoomRef = null;
 let mpPlayersUnsub = null;
+let mpRoomUnsub = null;
 let mpSendCooldown = 0;
 let mpPlayers = new Map();
+let localClears = 0;
+let mpRoomId = null;
+let mpOwnerId = null;
 let leaderboardUnsub = null;
 let editorEnabled = false;
 let editorArmed = false;
@@ -196,6 +213,7 @@ const world = {
   sharedSeed: null,
   sharedStartMs: null,
   spawnIndex: 0,
+  awaitingRaceStart: false,
 };
 
 bestEl.textContent = String(best);
@@ -215,6 +233,9 @@ if (validFirebaseConfig(firebaseConfig)) {
 
   db = getFirestore(app);
   rtdb = getDatabase(app);
+  onValue(dbRef(rtdb, ".info/serverTimeOffset"), (snap) => {
+    rtdbOffsetMs = Number(snap.val() || 0);
+  });
   auth = getAuth(app);
   const provider = new GoogleAuthProvider();
 
@@ -312,7 +333,19 @@ mpToggleBtn.addEventListener("click", () => {
     return;
   }
   if (mpEnabled) stopMultiplayer();
-  else startMultiplayer();
+  else startMultiplayer(MULTI_PUBLIC_ROOM_ID, { autoStart: true });
+});
+
+mpRoomBtn.addEventListener("click", () => {
+  roomModal.classList.remove("hidden");
+});
+
+closeRoomBtn.addEventListener("click", () => {
+  roomModal.classList.add("hidden");
+});
+
+roomModal.addEventListener("click", (e) => {
+  if (e.target === roomModal) roomModal.classList.add("hidden");
 });
 
 openAuthBtn.addEventListener("click", () => {
@@ -412,28 +445,60 @@ function persistLocalProfile() {
 
 async function initSharedRoom(roomRef) {
   try {
+    const seed = Math.floor(Math.random() * 1e9);
+    await runTransaction(roomRef, (current) => {
+      const next = { ...(current || {}) };
+      next.seed = seed;
+      next.startAt = rtdbServerTimestamp();
+      next.raceId = (Number(current?.raceId || 0) + 1) || 1;
+      return next;
+    });
     const snap = await dbGet(roomRef);
     if (snap.exists()) {
       const data = snap.val();
-      if (!data.seed) {
-        const seed = Math.floor(Math.random() * 1e9);
-        await dbUpdate(roomRef, { seed, startAt: rtdbServerTimestamp() });
-        world.sharedSeed = seed;
-        world.sharedStartMs = Date.now();
-      } else {
+      if (data.seed) {
         world.sharedSeed = Number(data.seed);
-        const startAtMs = coerceTimestampMs(data.startAt) || Date.now();
-        world.sharedStartMs = startAtMs;
+        world.sharedStartMs = coerceTimestampMs(data.startAt) || Date.now();
+        world.awaitingRaceStart = true;
+        prepareRaceStart();
       }
-    } else {
-      const seed = Math.floor(Math.random() * 1e9);
-      await dbUpdate(roomRef, { seed, startAt: rtdbServerTimestamp() });
-      world.sharedSeed = seed;
-      world.sharedStartMs = Date.now();
     }
     world.spawnIndex = 0;
   } catch {
     mpStatus.textContent = "Multiplayer: Room init failed";
+  }
+}
+
+async function loadRoomState(roomRef) {
+  try {
+    const snap = await dbGet(roomRef);
+    if (snap.exists()) {
+      const data = snap.val();
+      if (data.seed && data.startAt) {
+        world.sharedSeed = Number(data.seed);
+        world.sharedStartMs = coerceTimestampMs(data.startAt) || Date.now();
+        world.awaitingRaceStart = true;
+        prepareRaceStart();
+      }
+      mpOwnerId = data.ownerId || mpOwnerId;
+    }
+  } catch {
+    roomStatus.textContent = "Room load failed.";
+  }
+}
+
+async function resetRoomSeed(roomRef) {
+  try {
+    const seed = Math.floor(Math.random() * 1e9);
+    await runTransaction(roomRef, (current) => {
+      const next = { ...(current || {}) };
+      next.seed = seed;
+      next.startAt = rtdbServerTimestamp();
+      next.raceId = (Number(current?.raceId || 0) + 1) || 1;
+      return next;
+    });
+  } catch {
+    roomStatus.textContent = "Start failed.";
   }
 }
 
@@ -461,6 +526,67 @@ function getMultiplayerId() {
   const generated = `guest-${Math.random().toString(36).slice(2, 10)}`;
   localStorage.setItem(key, generated);
   return generated;
+}
+
+function generateRoomCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 5; i++) {
+    code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return code;
+}
+
+function setRoomUiState({ inRoom, owner, code }) {
+  roomStartBtn.disabled = !inRoom || !owner;
+  roomLeaveBtn.disabled = !inRoom;
+  roomCodeDisplay.textContent = code ? `Room code: ${code}` : "";
+  if (inRoom) {
+    roomStatus.textContent = owner
+      ? "You are the room owner. Click Start Race to begin."
+      : "Waiting for the owner to start the race.";
+  } else {
+    roomStatus.textContent = "Create or join a room to race together.";
+  }
+}
+
+async function createRoom() {
+  if (!rtdb || !uid) return;
+  const code = generateRoomCode();
+  const roomRef = dbRef(rtdb, `rooms/${code}`);
+  const ownerId = getMultiplayerId();
+  await dbUpdate(roomRef, {
+    ownerId,
+    createdAt: rtdbServerTimestamp(),
+    seed: null,
+    startAt: null,
+    raceId: 0,
+  });
+  startMultiplayer(code, { autoStart: false, ownerId });
+  setRoomUiState({ inRoom: true, owner: true, code });
+}
+
+async function joinRoom() {
+  if (!rtdb || !uid) return;
+  const code = roomCodeInput.value.trim().toUpperCase();
+  if (!code) {
+    roomStatus.textContent = "Enter a room code.";
+    return;
+  }
+  const roomRef = dbRef(rtdb, `rooms/${code}`);
+  const snap = await dbGet(roomRef);
+  if (!snap.exists()) {
+    roomStatus.textContent = "Room not found.";
+    return;
+  }
+  const data = snap.val() || {};
+  startMultiplayer(code, { autoStart: false, ownerId: data.ownerId || null });
+  setRoomUiState({ inRoom: true, owner: false, code });
+}
+
+function leaveRoom() {
+  stopMultiplayer();
+  setRoomUiState({ inRoom: false, owner: false, code: "" });
 }
 
 function setEditorEnabled(value) {
@@ -655,17 +781,51 @@ async function savePlayerData() {
   }
 }
 
-function startMultiplayer() {
+function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
   mpEnabled = true;
   mpPlayerId = getMultiplayerId();
-  mpRoomRef = dbRef(rtdb, `rooms/${MULTI_ROOM_ID}`);
-  mpPlayerRef = dbRef(rtdb, `rooms/${MULTI_ROOM_ID}/players/${mpPlayerId}`);
+  mpRoomId = roomId;
+  mpOwnerId = ownerId || null;
+  mpRoomRef = dbRef(rtdb, `rooms/${roomId}`);
+  mpPlayerRef = dbRef(rtdb, `rooms/${roomId}/players/${mpPlayerId}`);
   mpStatus.textContent = "Multiplayer: Connecting...";
+  world.obstacles = [];
+  world.pickups = [];
+  world.spawnIndex = 0;
+  world.spawnTimer = 0;
 
-  void initSharedRoom(mpRoomRef);
+  if (autoStart) {
+    void initSharedRoom(mpRoomRef);
+  } else {
+    void loadRoomState(mpRoomRef);
+  }
 
-  mpPlayersUnsub = onValue(dbRef(rtdb, `rooms/${MULTI_ROOM_ID}/players`), (snap) => {
-    const now = Date.now();
+  mpRoomUnsub = onValue(mpRoomRef, (snap) => {
+    if (!snap.exists()) return;
+    const data = snap.val();
+    const seed = Number(data.seed || 0);
+    const startAtMs = coerceTimestampMs(data.startAt);
+    if (seed && startAtMs && (seed !== world.sharedSeed || startAtMs !== world.sharedStartMs)) {
+      world.sharedSeed = seed;
+      world.sharedStartMs = startAtMs;
+      world.spawnIndex = 0;
+      world.spawnTimer = 0;
+      world.obstacles = [];
+      world.pickups = [];
+      world.center = H * 0.5;
+      world.awaitingRaceStart = true;
+      prepareRaceStart();
+    }
+    mpOwnerId = data.ownerId || mpOwnerId;
+    if (mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
+      const isOwner = mpOwnerId === getMultiplayerId();
+      roomStartBtn.disabled = !isOwner;
+      roomLeaveBtn.disabled = false;
+    }
+  });
+
+  mpPlayersUnsub = onValue(dbRef(rtdb, `rooms/${roomId}/players`), (snap) => {
+    const now = Date.now() + rtdbOffsetMs;
     const next = new Map();
     if (snap.exists()) {
       const data = snap.val();
@@ -677,28 +837,42 @@ function startMultiplayer() {
       }
     }
     mpPlayers = next;
-    mpStatus.textContent = `Multiplayer: ${mpPlayers.size + 1} players`;
+    const count = mpPlayers.size + 1;
+    if (mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
+      mpStatus.textContent = `Room ${mpRoomId}: ${count} players`;
+    } else {
+      mpStatus.textContent = `Multiplayer: ${count} players`;
+    }
   });
 
   onDisconnect(mpPlayerRef).remove();
 }
 
 function stopMultiplayer() {
+  const currentRoomId = mpRoomId;
   mpEnabled = false;
   mpStatus.textContent = "Multiplayer: Off";
   mpPlayers.clear();
   mpPlayerRef = null;
   mpRoomRef = null;
+  mpRoomId = null;
+  mpOwnerId = null;
   if (mpPlayersUnsub) {
     mpPlayersUnsub();
     mpPlayersUnsub = null;
   }
+  if (mpRoomUnsub) {
+    mpRoomUnsub();
+    mpRoomUnsub = null;
+  }
   if (mpPlayerId) {
-    void dbRemove(dbRef(rtdb, `rooms/${MULTI_ROOM_ID}/players/${mpPlayerId}`));
+    const roomId = currentRoomId || MULTI_PUBLIC_ROOM_ID;
+    void dbRemove(dbRef(rtdb, `rooms/${roomId}/players/${mpPlayerId}`));
   }
   world.sharedSeed = null;
   world.sharedStartMs = null;
   world.spawnIndex = 0;
+  world.awaitingRaceStart = false;
 }
 
 function queueSave() {
@@ -870,6 +1044,27 @@ editorPlayBtn.addEventListener("click", () => {
   startGame();
 });
 
+roomCreateBtn.addEventListener("click", () => {
+  void createRoom();
+});
+
+roomJoinBtn.addEventListener("click", () => {
+  void joinRoom();
+});
+
+roomStartBtn.addEventListener("click", () => {
+  if (!mpRoomRef || !mpOwnerId) return;
+  if (mpOwnerId !== getMultiplayerId()) {
+    roomStatus.textContent = "Only the room owner can start.";
+    return;
+  }
+  void resetRoomSeed(mpRoomRef);
+});
+
+roomLeaveBtn.addEventListener("click", () => {
+  leaveRoom();
+});
+
 function hardReset() {
   state = "idle";
   score = 0;
@@ -890,6 +1085,7 @@ function hardReset() {
 function startGame() {
   state = "running";
   score = 0;
+  localClears = 0;
   world.obstacles.length = 0;
   world.pickups.length = 0;
   world.spawnTimer = 0;
@@ -905,6 +1101,22 @@ function startGame() {
     world.obstacles = editorLevel.map((o) => ({ ...o, scored: false }));
   }
   hideOverlay();
+}
+
+function prepareRaceStart() {
+  state = "idle";
+  score = 0;
+  localClears = 0;
+  world.obstacles = [];
+  world.pickups = [];
+  world.spawnTimer = 0;
+  world.center = H * 0.5;
+  world.time = 0;
+  world.spawnIndex = 0;
+  trailPoints.length = 0;
+  player.y = H * 0.5;
+  player.vy = 0;
+  showOverlay("Race Starting", `Race starts in ${RACE_COUNTDOWN_SEC}...`);
 }
 
 function applyRunResult(runScore) {
@@ -1118,6 +1330,7 @@ function update(dt) {
         y: player.y,
         vy: player.vy,
         score: Math.floor(score),
+        clears: localClears,
         sprite: profile.equippedSprite,
         trail: profile.equippedTrail,
         color: profile.equippedColor,
@@ -1125,6 +1338,22 @@ function update(dt) {
         lastSeen: rtdbServerTimestamp(),
       });
     }
+  }
+
+  if (mpEnabled && world.awaitingRaceStart) {
+    if (!world.sharedStartMs) return;
+    const now = Date.now() + rtdbOffsetMs;
+    const elapsed = (now - world.sharedStartMs) / 1000;
+    const remaining = Math.max(0, RACE_COUNTDOWN_SEC - elapsed);
+    if (remaining > 0) {
+      const seconds = Math.ceil(remaining);
+      showOverlay("Race Starting", `Race starts in ${seconds}...`);
+      mpStatus.textContent = `Multiplayer: Race in ${seconds}`;
+      return;
+    }
+    world.awaitingRaceStart = false;
+    hideOverlay();
+    startGame();
   }
 
   if (state !== "running") return;
@@ -1150,10 +1379,19 @@ function update(dt) {
   world.spawnTimer += dt;
   if (editorEnabled && editorLevel.length > 0) {
     // Editor mode uses a fixed set of obstacles.
-  } else if (mpEnabled && world.sharedSeed && world.sharedStartMs) {
-    const elapsed = (Date.now() - world.sharedStartMs) / 1000;
+  } else if (mpEnabled) {
+    if (!world.sharedSeed || !world.sharedStartMs) {
+      // Wait for shared seed/time to avoid mixed obstacle sets.
+      return;
+    }
+    const now = Date.now() + rtdbOffsetMs;
+    const elapsed = (now - world.sharedStartMs) / 1000;
     const targetIndex = Math.floor(elapsed / world.spawnEvery);
-    while (world.spawnIndex < targetIndex) {
+    // Prevent catch-up bursts that stack multiple obstacles in one area.
+    if (targetIndex - world.spawnIndex > 1) {
+      world.spawnIndex = targetIndex - 1;
+    }
+    if (world.spawnIndex < targetIndex) {
       spawnSharedObstacle(world.spawnIndex);
       world.spawnIndex += 1;
     }
@@ -1175,6 +1413,7 @@ function update(dt) {
     if (!obstacle.scored && obstacleRightEdge(obstacle) < player.x - player.r) {
       obstacle.scored = true;
       score += OBSTACLE_CLEAR_POINTS;
+      localClears += 1;
       shopMsg.textContent = `Obstacle cleared +${OBSTACLE_CLEAR_POINTS} score`;
     }
   }
@@ -1581,8 +1820,10 @@ function drawOtherPlayers() {
     const color = getItem(COLORS, data.color) || COLORS[0];
     const spriteId = data.sprite || "dart";
     const angle = data.vy < 0 ? -Math.PI * 0.25 : Math.PI * 0.25;
+    const clears = Number(data.clears || 0);
+    const offset = (clears - localClears) * 40;
     ctx.save();
-    ctx.translate(data.x || 0, data.y || 0);
+    ctx.translate((data.x || 0) + offset, data.y || 0);
     ctx.rotate(angle);
     ctx.globalAlpha = 0.55;
     drawSpriteById(spriteId, color);
@@ -1593,7 +1834,7 @@ function drawOtherPlayers() {
     ctx.fillStyle = "rgba(255,255,255,0.75)";
     ctx.font = "12px Segoe UI, Tahoma, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(name, data.x || 0, (data.y || 0) - 16);
+    ctx.fillText(name, (data.x || 0) + offset, (data.y || 0) - 16);
   }
 }
 
