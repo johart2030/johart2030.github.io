@@ -190,6 +190,7 @@ let mpPlayers = new Map();
 let localClears = 0;
 let mpRoomId = null;
 let mpOwnerId = null;
+let mpTrails = new Map();
 let leaderboardUnsub = null;
 let editorEnabled = false;
 let editorArmed = false;
@@ -837,6 +838,18 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
       }
     }
     mpPlayers = next;
+    // Sync remote trails with latest positions.
+    for (const [id, data] of mpPlayers.entries()) {
+      const offset = getPlayerOffset(id);
+      const x = (data.x || player.x) + offset;
+      const y = data.y || 0;
+      const trail = mpTrails.get(id) || [];
+      trail.push({ x, y, life: 0.8 });
+      mpTrails.set(id, trail);
+    }
+    for (const id of mpTrails.keys()) {
+      if (!mpPlayers.has(id)) mpTrails.delete(id);
+    }
     const count = mpPlayers.size + 1;
     if (mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
       mpStatus.textContent = `Room ${mpRoomId}: ${count} players`;
@@ -853,6 +866,7 @@ function stopMultiplayer() {
   mpEnabled = false;
   mpStatus.textContent = "Multiplayer: Off";
   mpPlayers.clear();
+  mpTrails.clear();
   mpPlayerRef = null;
   mpRoomRef = null;
   mpRoomId = null;
@@ -1257,7 +1271,77 @@ function spawnObstacle(rng = Math.random) {
 function spawnSharedObstacle(index) {
   if (!world.sharedSeed) return;
   const rng = makeSeededRng((world.sharedSeed ^ (index * 0x9e3779b9)) >>> 0);
-  spawnObstacle(rng);
+  const center = clamp(90 + rng() * (H - 180), 90, H - 90);
+  const roll = rng();
+  if (roll < 0.38) {
+    world.obstacles.push({
+      kind: "gate",
+      x: W + 70,
+      w: randWith(rng, 52, 74),
+      center,
+      gap: randWith(rng, 125, 170),
+      scored: false,
+    });
+  } else if (roll < 0.68) {
+    world.obstacles.push({
+      kind: "movingGate",
+      x: W + 70,
+      w: randWith(rng, 54, 78),
+      baseCenter: center,
+      amp: randWith(rng, 22, 65),
+      freq: randWith(rng, 1.2, 2.5),
+      phase: randWith(rng, 0, Math.PI * 2),
+      gap: randWith(rng, 120, 165),
+      scored: false,
+    });
+  } else if (roll < 0.86) {
+    world.obstacles.push({
+      kind: "pulseGate",
+      x: W + 70,
+      w: randWith(rng, 56, 82),
+      center,
+      baseGap: randWith(rng, 130, 180),
+      pulse: randWith(rng, 12, 35),
+      freq: randWith(rng, 1.8, 3.2),
+      phase: randWith(rng, 0, Math.PI * 2),
+      scored: false,
+    });
+  } else if (roll < 0.94) {
+    const centerB = clamp(center + randWith(rng, -120, 120), 90, H - 90);
+    world.obstacles.push({
+      kind: "corridor",
+      x: W + 70,
+      w: randWith(rng, 140, 220),
+      centerA: center,
+      centerB,
+      gap: randWith(rng, 115, 150),
+      split: randWith(rng, 0.45, 0.55),
+      scored: false,
+    });
+  } else {
+    world.obstacles.push({
+      kind: "spinner",
+      x: W + 70,
+      radius: randWith(rng, 10, 14),
+      armLen: randWith(rng, 40, 58),
+      angle: randWith(rng, 0, Math.PI * 2),
+      spin: (rng() < 0.5 ? -1 : 1) * randWith(rng, 2.1, 3.4),
+      baseY: randWith(rng, 90, H - 90),
+      swayAmp: randWith(rng, 18, 48),
+      swayFreq: randWith(rng, 1.1, 2.2),
+      phase: randWith(rng, 0, Math.PI * 2),
+      scored: false,
+    });
+  }
+
+  if (rng() < 0.55) {
+    world.pickups.push({
+      x: W + 95,
+      y: clamp(center + randWith(rng, -60, 60), 36, H - 36),
+      r: 9,
+      value: Math.floor(randWith(rng, 12, 32)),
+    });
+  }
 }
 
 function gateState(obstacle) {
@@ -1409,6 +1493,18 @@ function update(dt) {
     pickup.x -= world.scroll * dt;
   }
 
+  if (mpEnabled) {
+    for (const trail of mpTrails.values()) {
+      for (const p of trail) {
+        p.x -= world.scroll * dt;
+        p.life -= dt;
+      }
+      while (trail.length > 60 || (trail[0] && (trail[0].life <= 0 || trail[0].x < -30))) {
+        trail.shift();
+      }
+    }
+  }
+
   for (const obstacle of world.obstacles) {
     if (!obstacle.scored && obstacleRightEdge(obstacle) < player.x - player.r) {
       obstacle.scored = true;
@@ -1488,28 +1584,28 @@ function drawTrail() {
   const trail = profile.equippedTrail;
   const color = getItem(COLORS, profile.equippedColor) || COLORS[0];
 
-  drawTrailById(trail, color);
+  drawTrailById(trail, color, trailPoints);
 }
 
-function drawTrailById(id, color) {
+function drawTrailById(id, color, points) {
   switch (id) {
     case "solid": {
-      drawTrailPolyline(color.trail, 2.8);
+      drawTrailPolyline(points, color.trail, 2.8);
       return;
     }
     case "dashed": {
-      drawTrailPolyline(color.trail, 2.4, [10, 8]);
+      drawTrailPolyline(points, color.trail, 2.4, [10, 8]);
       return;
     }
     case "neon": {
-      drawTrailPolyline(color.glow, 8);
-      drawTrailPolyline(color.trail, 2.6);
+      drawTrailPolyline(points, color.glow, 8);
+      drawTrailPolyline(points, color.trail, 2.6);
       return;
     }
     case "rainbow": {
-      for (let i = 1; i < trailPoints.length; i++) {
-        const a = trailPoints[i - 1];
-        const b = trailPoints[i];
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1];
+        const b = points[i];
         const hue = (i * 16 + world.time * 220) % 360;
         ctx.strokeStyle = `hsla(${hue}, 90%, 62%, ${Math.max(0.15, b.life)})`;
         ctx.lineWidth = 2.4;
@@ -1522,97 +1618,98 @@ function drawTrailById(id, color) {
     }
     case "pulse": {
       const pulse = 2.2 + Math.sin(world.time * 8) * 1.2;
-      drawTrailPolyline(color.glow, pulse + 5);
-      drawTrailPolyline(color.trail, pulse);
+      drawTrailPolyline(points, color.glow, pulse + 5);
+      drawTrailPolyline(points, color.trail, pulse);
       return;
     }
     case "spark": {
-      drawTrailPolyline(color.trail, 2.2);
-      drawTrailSparks(color.trail, 5, 1.6);
+      drawTrailPolyline(points, color.trail, 2.2);
+      drawTrailSparks(points, color.trail, 5, 1.6);
       return;
     }
     case "comet": {
-      drawTrailPolyline(color.trail, 3.2);
-      drawTrailSparks(color.glow, 8, 2.1);
+      drawTrailPolyline(points, color.trail, 3.2);
+      drawTrailSparks(points, color.glow, 8, 2.1);
       return;
     }
     case "glow": {
-      drawTrailPolyline(color.glow, 10);
-      drawTrailPolyline(color.trail, 1.8);
+      drawTrailPolyline(points, color.glow, 10);
+      drawTrailPolyline(points, color.trail, 1.8);
       return;
     }
     case "trace": {
-      drawTrailPolyline(color.trail, 1.6);
+      drawTrailPolyline(points, color.trail, 1.6);
       return;
     }
     case "drift": {
       const drift = 6 + Math.sin(world.time * 4) * 3;
-      drawTrailPolyline(color.trail, 2.4, [drift, 10]);
+      drawTrailPolyline(points, color.trail, 2.4, [drift, 10]);
       return;
     }
     case "flash": {
       const flash = 1.8 + Math.abs(Math.sin(world.time * 12)) * 2.2;
-      drawTrailPolyline(color.glow, flash + 6);
-      drawTrailPolyline(color.trail, flash);
+      drawTrailPolyline(points, color.glow, flash + 6);
+      drawTrailPolyline(points, color.trail, flash);
       return;
     }
     case "arc-line": {
-      drawTrailWave(color.trail, 2.4, 6);
+      drawTrailWave(points, color.trail, 2.4, 6);
       return;
     }
     case "signal": {
-      drawTrailPolyline(color.trail, 2, [4, 6, 12, 6]);
+      drawTrailPolyline(points, color.trail, 2, [4, 6, 12, 6]);
       return;
     }
     case "ember": {
-      drawTrailPolyline(color.trail, 2.2);
-      drawTrailSparks(color.accent, 4, 2.2);
+      drawTrailPolyline(points, color.trail, 2.2);
+      drawTrailSparks(points, color.accent, 4, 2.2);
       return;
     }
     case "glass": {
       ctx.globalAlpha = 0.6;
-      drawTrailPolyline(color.trail, 3.6);
+      drawTrailPolyline(points, color.trail, 3.6);
       ctx.globalAlpha = 1;
-      drawTrailPolyline("#ffffff", 1.2);
+      drawTrailPolyline(points, "#ffffff", 1.2);
       return;
     }
     case "aura": {
-      drawTrailPolyline(color.glow, 12);
-      drawTrailPolyline(color.trail, 2.2);
+      drawTrailPolyline(points, color.glow, 12);
+      drawTrailPolyline(points, color.trail, 2.2);
       return;
     }
     case "flare": {
       const flare = 3 + Math.sin(world.time * 6) * 1.8;
-      drawTrailPolyline(color.trail, flare);
-      drawTrailSparks(color.accent, 3, 2.6);
+      drawTrailPolyline(points, color.trail, flare);
+      drawTrailSparks(points, color.accent, 3, 2.6);
       return;
     }
     case "strobe": {
-      drawTrailPolyline(color.trail, 2.2);
+      drawTrailPolyline(points, color.trail, 2.2);
       if (Math.floor(world.time * 6) % 2 === 0) {
-        drawTrailPolyline("#ffffff", 1);
+        drawTrailPolyline(points, "#ffffff", 1);
       }
       return;
     }
     case "spectrum": {
-      drawTrailRainbowMulti(3);
+      drawTrailRainbowMulti(points, 3);
       return;
     }
     case "celestial": {
-      drawTrailRainbowMulti(6);
-      drawTrailSparks("#ffffff", 6, 2.1);
+      drawTrailRainbowMulti(points, 6);
+      drawTrailSparks(points, "#ffffff", 6, 2.1);
       return;
     }
     default: {
-      drawTrailPolyline(color.trail, 2.8);
+      drawTrailPolyline(points, color.trail, 2.8);
     }
   }
 }
 
-function drawTrailPolyline(strokeStyle, width, dash = null) {
+function drawTrailPolyline(points, strokeStyle, width, dash = null) {
+  if (points.length < 2) return;
   ctx.beginPath();
-  ctx.moveTo(trailPoints[0].x, trailPoints[0].y);
-  for (let i = 1; i < trailPoints.length; i++) ctx.lineTo(trailPoints[i].x, trailPoints[i].y);
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
   if (dash) ctx.setLineDash(dash);
   ctx.strokeStyle = strokeStyle;
   ctx.lineWidth = width;
@@ -1620,20 +1717,21 @@ function drawTrailPolyline(strokeStyle, width, dash = null) {
   if (dash) ctx.setLineDash([]);
 }
 
-function drawTrailSparks(color, step, radius) {
+function drawTrailSparks(points, color, step, radius) {
   ctx.fillStyle = color;
-  for (let i = 0; i < trailPoints.length; i += step) {
-    const p = trailPoints[i];
+  for (let i = 0; i < points.length; i += step) {
+    const p = points[i];
     ctx.beginPath();
     ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
     ctx.fill();
   }
 }
 
-function drawTrailWave(strokeStyle, width, amp) {
+function drawTrailWave(points, strokeStyle, width, amp) {
+  if (points.length < 2) return;
   ctx.beginPath();
-  for (let i = 0; i < trailPoints.length; i++) {
-    const p = trailPoints[i];
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
     const offset = Math.sin((i + world.time * 12) * 0.35) * amp;
     if (i === 0) ctx.moveTo(p.x, p.y + offset);
     else ctx.lineTo(p.x, p.y + offset);
@@ -1643,7 +1741,8 @@ function drawTrailWave(strokeStyle, width, amp) {
   ctx.stroke();
 }
 
-function drawTrailRainbowMulti(width) {
+function drawTrailRainbowMulti(points, width) {
+  if (points.length < 2) return;
   const bands = [
     "rgba(255, 95, 86, 0.8)",
     "rgba(255, 204, 86, 0.8)",
@@ -1652,8 +1751,8 @@ function drawTrailRainbowMulti(width) {
   ];
   for (let b = 0; b < bands.length; b++) {
     ctx.beginPath();
-    for (let i = 0; i < trailPoints.length; i++) {
-      const p = trailPoints[i];
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
       const offset = (b - 1.5) * 2.2;
       if (i === 0) ctx.moveTo(p.x, p.y + offset);
       else ctx.lineTo(p.x, p.y + offset);
@@ -1816,14 +1915,18 @@ function drawEditorMarkers() {
 
 function drawOtherPlayers() {
   if (!mpEnabled || mpPlayers.size === 0) return;
-  for (const data of mpPlayers.values()) {
+  for (const [id, data] of mpPlayers.entries()) {
     const color = getItem(COLORS, data.color) || COLORS[0];
     const spriteId = data.sprite || "dart";
     const angle = data.vy < 0 ? -Math.PI * 0.25 : Math.PI * 0.25;
-    const clears = Number(data.clears || 0);
-    const offset = (clears - localClears) * 40;
+    const offset = getPlayerOffset(id);
+    const trailId = data.trail || "solid";
+    const remoteTrail = mpTrails.get(id) || [];
+    if (remoteTrail.length > 1) {
+      drawTrailById(trailId, color, remoteTrail);
+    }
     ctx.save();
-    ctx.translate((data.x || 0) + offset, data.y || 0);
+    ctx.translate((data.x || player.x) + offset, data.y || 0);
     ctx.rotate(angle);
     ctx.globalAlpha = 0.55;
     drawSpriteById(spriteId, color);
@@ -1834,8 +1937,12 @@ function drawOtherPlayers() {
     ctx.fillStyle = "rgba(255,255,255,0.75)";
     ctx.font = "12px Segoe UI, Tahoma, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(name, (data.x || 0) + offset, (data.y || 0) - 16);
+    ctx.fillText(name, (data.x || player.x) + offset, (data.y || 0) - 16);
   }
+}
+
+function getPlayerOffset(id) {
+  return 0;
 }
 
 function drawSpriteById(id, color) {
