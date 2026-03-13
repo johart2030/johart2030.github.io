@@ -131,6 +131,23 @@ select {
   font-size: 0.85rem;
 }
 
+.site-version {
+  margin-top: 0.9rem;
+  border-top: 1px solid #ffffff1f;
+  padding-top: 0.8rem;
+}
+
+.site-version h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+#versionText {
+  margin: 0;
+  font-size: 0.95rem;
+  opacity: 0.85;
+}
+
 .editor-toggle {
   margin-top: 0.9rem;
 }

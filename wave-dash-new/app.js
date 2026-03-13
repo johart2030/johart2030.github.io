@@ -78,6 +78,7 @@ const editorPanelToggleBtn = document.getElementById("editorPanelToggleBtn");
 const editorPanel = document.getElementById("editorPanel");
 const mpToggleBtn = document.getElementById("mpToggleBtn");
 const mpStatus = document.getElementById("mpStatus");
+const versionText = document.getElementById("versionText");
 const mpRoomBtn = document.getElementById("mpRoomBtn");
 const roomModal = document.getElementById("roomModal");
 const closeRoomBtn = document.getElementById("closeRoomBtn");
@@ -98,6 +99,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
+const SITE_VERSION = 1;
 
 const SPRITES = [
   { id: "dart", name: "Dart", cost: 0, style: "dart" },
@@ -335,7 +337,7 @@ mpToggleBtn.addEventListener("click", () => {
     return;
   }
   if (mpEnabled) stopMultiplayer();
-  else startMultiplayer(MULTI_PUBLIC_ROOM_ID, { autoStart: true, resetSeed: false });
+  else startMultiplayer(MULTI_PUBLIC_ROOM_ID, { autoStart: true });
 });
 
 mpRoomBtn.addEventListener("click", () => {
@@ -445,16 +447,12 @@ function persistLocalProfile() {
   localStorage.setItem(LEGACY_BEST_KEY, String(profile.bestScore));
 }
 
-async function initSharedRoom(roomRef, { resetSeed } = {}) {
+async function initSharedRoom(roomRef) {
   try {
-    const seed = Math.floor(Math.random() * 1e9);
+    const seed = Math.floor(Math.random() * 1e9) + 1;
     await runTransaction(roomRef, (current) => {
       const next = { ...(current || {}) };
-      if (resetSeed || !next.seed) {
-        next.seed = seed;
-        next.startAt = rtdbServerTimestamp();
-        next.raceId = (Number(current?.raceId || 0) + 1) || 1;
-      }
+      if (!next.seed) next.seed = seed;
       return next;
     });
     const snap = await dbGet(roomRef);
@@ -493,10 +491,8 @@ async function loadRoomState(roomRef) {
 
 async function resetRoomSeed(roomRef) {
   try {
-    const seed = Math.floor(Math.random() * 1e9);
     await runTransaction(roomRef, (current) => {
       const next = { ...(current || {}) };
-      next.seed = seed;
       next.startAt = rtdbServerTimestamp();
       next.raceId = (Number(current?.raceId || 0) + 1) || 1;
       return next;
@@ -785,7 +781,7 @@ async function savePlayerData() {
   }
 }
 
-function startMultiplayer(roomId, { autoStart, ownerId, resetSeed } = {}) {
+function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
   mpEnabled = true;
   mpPlayerId = getMultiplayerId();
   mpRoomId = roomId;
@@ -799,7 +795,7 @@ function startMultiplayer(roomId, { autoStart, ownerId, resetSeed } = {}) {
   world.spawnTimer = 0;
 
   if (autoStart) {
-    void initSharedRoom(mpRoomRef, { resetSeed: Boolean(resetSeed) });
+    void initSharedRoom(mpRoomRef);
   } else {
     void loadRoomState(mpRoomRef);
   }
@@ -2369,5 +2365,6 @@ window.addEventListener("beforeunload", () => {
 
 refreshShopUi();
 setEditorPanelVisible(false);
+if (versionText) versionText.textContent = `v${SITE_VERSION}`;
 hardReset();
 requestAnimationFrame(render);
