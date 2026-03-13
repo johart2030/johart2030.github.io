@@ -99,7 +99,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 1;
+const SITE_VERSION = 2;
 
 const SPRITES = [
   { id: "dart", name: "Dart", cost: 0, style: "dart" },
