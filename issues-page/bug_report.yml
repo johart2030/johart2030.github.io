@@ -1,0 +1,58 @@
+name: Bug Report
+description: Report a problem with the website
+title: "[BUG]: "
+labels: ["bug"]
+
+body:
+  - type: dropdown
+    id: site_section
+    attributes:
+      label: Which part of the site has the issue?
+      description: You MUST select one before continuing
+      options:
+        - Wave Dash
+        - .WAV Player
+        - Peg Game
+        - Login / Account System
+        - Performance / Lag
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: summary
+    attributes:
+      label: Short description
+      placeholder: Briefly describe the issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Detailed explanation
+      placeholder: Explain what happened, what you expected, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to...
+        2. Click...
+        3. See error...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: How bad is the issue?
+      options:
+        - Minor (annoying but usable)
+        - Moderate (affects gameplay)
+        - Major (game breaking)
+    validations:
+      required: true
