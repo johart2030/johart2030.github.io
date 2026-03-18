@@ -29,3 +29,5 @@ Feature List
 12. Dev-only sprite, trail, and color
 
 13. Add random music
+
+14. Add player levels/xp
