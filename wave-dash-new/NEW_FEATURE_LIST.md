@@ -31,3 +31,5 @@ Feature List
 13. Add random music
 
 14. Add player levels/xp
+
+15. Make player leaderboard visible to all players, including signed out players 
