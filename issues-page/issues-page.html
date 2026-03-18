@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Report an Issue | johart2030</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32-project-ideas-html.png">
+  <link rel="icon" type="image/x-icon" href="favicon-project-ideas-html.ico">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0d0d0f;
+      color: #ffffff;
+      margin: 0;
+      padding: 20px;
+      max-width: 800px;
+      line-height: 1.5;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 36px;
+      color: #7db7ff;
+      margin-bottom: 20px;
+      font-weight: 600;
+    }
+
+    .card {
+      background: #16161a;
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.35);
+      margin-bottom: 22px;
+      border: 1px solid #222;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 8px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      border: 1px solid #333;
+      background: #0f0f12;
+      color: #cfcfcf;
+      font-size: 14px;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: #7db7ff;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 12px;
+      background: linear-gradient(to right, #0059ff, #78aaff);
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      filter: brightness(1.15);
+    }
+
+    h2 {
+      color: #7db7ff;
+      margin-top: 40px;
+      font-size: 28px;
+    }
+
+    .idea {
+      background: #16161a;
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 12px;
+      border-left: 4px solid #7db7ff;
+      border: 1px solid #222;
+      box-shadow: 0 0 8px rgba(0,0,0,0.25);
+    }
+
+    .idea strong {
+      color: #78aaff;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Report an Issue</h1>
+
+<div class="card">
+  <label>Your Name</label>
+  <input id="nameInput" placeholder="Optional" />
+
+  <label>Which part of the site has the issue?</label>
+  <select id="sectionSelect">
+    <option value="">-- Select Section --</option>
+    <option>Wave Dash</option>
+    <option>.WAV Player</option>
+    <option>Peg Game</option>
+    <option>Login / Account System</option>
+    <option>Performance / Lag</option>
+    <option>Other</option>
+  </select>
+
+  <label>Short Description</label>
+  <input id="summaryInput" placeholder="Briefly describe the issue" />
+
+  <label>Detailed Explanation</label>
+  <textarea id="detailsInput" rows="4" placeholder="Explain what happened, what you expected, etc."></textarea>
+
+  <label>Steps to Reproduce</label>
+  <textarea id="stepsInput" rows="3" placeholder="1. Go to... 2. Click... 3. See error..."></textarea>
+
+  <label>Severity</label>
+  <select id="severitySelect">
+    <option value="">-- Select Severity --</option>
+    <option>Minor (annoying but usable)</option>
+    <option>Moderate (affects gameplay)</option>
+    <option>Major (game breaking)</option>
+  </select>
+
+  <button id="submitBtn">Submit Issue</button>
+</div>
+
+<h2>Submitted Issues</h2>
+<div id="issuesList"></div>
+
+<!-- Firebase + Firestore -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
+  import { getFirestore, collection, addDoc, getDocs, orderBy, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyD9xg--UcVfTz7yvhIifJMHEQozFxnz0tk",
+    authDomain: "issues-page-johart2030-github.firebaseapp.com",
+    projectId: "issues-page-johart2030-github",
+    storageBucket: "issues-page-johart2030-github.firebasestorage.app",
+    messagingSenderId: "182799586665",
+    appId: "1:182799586665:web:246a8adbf62988c69bd9f8",
+    measurementId: "G-WXD1NK33JL"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+  const db = getFirestore(app);
+
+  const nameInput = document.getElementById("nameInput");
+  const sectionSelect = document.getElementById("sectionSelect");
+  const summaryInput = document.getElementById("summaryInput");
+  const detailsInput = document.getElementById("detailsInput");
+  const stepsInput = document.getElementById("stepsInput");
+  const severitySelect = document.getElementById("severitySelect");
+  const submitBtn = document.getElementById("submitBtn");
+  const issuesList = document.getElementById("issuesList");
+
+  submitBtn.addEventListener("click", async () => {
+    const name = nameInput.value.trim() || "Anonymous";
+    const section = sectionSelect.value;
+    const summary = summaryInput.value.trim();
+    const details = detailsInput.value.trim();
+    const steps = stepsInput.value.trim();
+    const severity = severitySelect.value;
+
+    if (!section || !summary || !details || !steps || !severity) {
+      alert("Please fill in all required fields.");
+      return;
+    }
+
+    await addDoc(collection(db, "issues"), {
+      name,
+      section,
+      summary,
+      details,
+      steps,
+      severity,
+      time: serverTimestamp()
+    });
+
+    nameInput.value = "";
+    sectionSelect.value = "";
+    summaryInput.value = "";
+    detailsInput.value = "";
+    stepsInput.value = "";
+    severitySelect.value = "";
+
+    loadIssues();
+  });
+
+  async function loadIssues() {
+    issuesList.innerHTML = "";
+    const q = query(collection(db, "issues"), orderBy("time", "desc"));
+    const querySnapshot = await getDocs(q);
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      let displayTime = "Just now";
+      if (data.time && data.time.toDate) {
+        displayTime = data.time.toDate().toLocaleString([], {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit"
+        });
+      }
+
+      const div = document.createElement("div");
+      div.className = "idea";
+      div.innerHTML = `
+        <strong>${data.name}</strong> — <em>${data.section}</em> <br>
+        <strong>${data.summary}</strong><br>
+        ${data.details}<br>
+        <strong>Steps:</strong> ${data.steps}<br>
+        <strong>Severity:</strong> ${data.severity}<br>
+        <small style="color:#888;">${displayTime}</small>
+      `;
+      issuesList.appendChild(div);
+    });
+  }
+
+  loadIssues();
+</script>
+
+</body>
+</html>
