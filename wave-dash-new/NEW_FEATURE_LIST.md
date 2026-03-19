@@ -35,3 +35,5 @@ Feature List
 15. Make player leaderboard visible to all players, including signed out players 
 
 16. Add support for arrow keys, w key, and sayo device
+
+17. Achievements
