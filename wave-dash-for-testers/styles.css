@@ -275,19 +275,50 @@ select {
 }
 
 .game-wrap {
+  --edge-bleed: 10px;
   position: relative;
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid #ffffff22;
   box-shadow: 0 10px 35px #00000088;
+  background: #07131f;
 }
 
 canvas {
   display: block;
-  width: 100%;
+  width: calc(100% + (var(--edge-bleed) * 2));
+  max-width: none;
+  margin: calc(var(--edge-bleed) * -1);
   height: auto;
   background: linear-gradient(180deg, #0f2e49 0%, #07131f 100%);
   touch-action: none;
+}
+
+.game-wrap.is-fullscreen {
+  --edge-bleed: 18px;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.game-wrap.is-fullscreen canvas {
+  width: calc(100vw + (var(--edge-bleed) * 2));
+  height: calc(100vh + (var(--edge-bleed) * 2));
+  margin: calc(var(--edge-bleed) * -1);
+}
+
+.game-wrap.is-fullscreen .game-top {
+  top: max(0.7rem, env(safe-area-inset-top));
+  left: max(0.7rem, env(safe-area-inset-left));
+  right: max(0.7rem, env(safe-area-inset-right));
+}
+
+.game-wrap.is-fullscreen .mobile-fly-btn {
+  right: max(0.8rem, env(safe-area-inset-right));
+  bottom: max(0.8rem, env(safe-area-inset-bottom));
 }
 
 .game-top {
@@ -346,6 +377,7 @@ canvas {
   place-content: center;
   text-align: center;
   background: #00000044;
+  z-index: 2;
 }
 
 .overlay.hidden {

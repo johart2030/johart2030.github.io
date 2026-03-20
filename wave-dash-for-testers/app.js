@@ -6,6 +6,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
   updateProfile,
 } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
@@ -36,6 +37,7 @@ import { enableCloudSave, firebaseConfig } from "./firebase-config.js";
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const gameWrap = document.getElementById("gameWrap");
 const difficultySelect = document.getElementById("difficultySelect");
 const musicToggleBtn = document.getElementById("musicToggleBtn");
 const scoreEl = document.getElementById("score");
@@ -111,6 +113,9 @@ const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
 const ROOM_CODE_RE = /^[A-Z2-9]{5}$/;
+const PLAYER_SCREEN_X = 280;
+const OBSTACLE_SPAWN_X = W + 28;
+const PICKUP_SPAWN_X = W + 54;
 
 const DEV_UIDS = new Set([]);
 const DEV_EMAILS = new Set([]);
@@ -272,7 +277,7 @@ let sharedSpawnCache = [];
 let profile = loadLocalProfile();
 let best = profile.bestScore;
 
-const player = { x: 170, y: H * 0.5, vy: 0, r: 11 };
+const player = { x: PLAYER_SCREEN_X, y: H * 0.5, vy: 0, r: 11 };
 const trailPoints = [];
 
 const world = {
@@ -315,12 +320,7 @@ if (validFirebaseConfig(firebaseConfig)) {
   const provider = new GoogleAuthProvider();
 
   googleLoginBtn.addEventListener("click", async () => {
-    try {
-      await signInWithPopup(auth, provider);
-      authModal.classList.add("hidden");
-    } catch (err) {
-      authState.textContent = "Login failed. Please try again.";
-    }
+    await startGoogleSignIn(auth, provider);
   });
 
   emailLoginBtn.addEventListener("click", async () => {
@@ -566,6 +566,47 @@ function normalizeRoomCode(value) {
     .toUpperCase()
     .replace(/[^A-Z2-9]/g, "")
     .slice(0, 5);
+}
+
+function describeGoogleAuthError(err) {
+  const code = String(err?.code || "");
+  if (code === "auth/popup-closed-by-user") return "Google sign-in was closed before it finished.";
+  if (code === "auth/popup-blocked") return "Google sign-in popup was blocked. Trying redirect instead can help.";
+  if (code === "auth/cancelled-popup-request") return "Another sign-in request is already in progress.";
+  if (code === "auth/unauthorized-domain") {
+    return "This site is not authorized for Google sign-in in Firebase yet.";
+  }
+  if (code === "auth/operation-not-supported-in-this-environment") {
+    return "This browser blocked popup sign-in. Redirect sign-in should work instead.";
+  }
+  if (code === "auth/network-request-failed") return "Google sign-in failed because of a network error.";
+  if (code) return `Google sign-in failed (${code}).`;
+  return "Google sign-in failed. Please try again.";
+}
+
+async function startGoogleSignIn(authRef, provider) {
+  provider.setCustomParameters({ prompt: "select_account" });
+  try {
+    authState.textContent = "Opening Google sign-in...";
+    await signInWithPopup(authRef, provider);
+    authModal.classList.add("hidden");
+  } catch (err) {
+    const code = String(err?.code || "");
+    if (
+      code === "auth/popup-blocked" ||
+      code === "auth/operation-not-supported-in-this-environment"
+    ) {
+      try {
+        authState.textContent = "Popup unavailable. Redirecting to Google sign-in...";
+        await signInWithRedirect(authRef, provider);
+        return;
+      } catch (redirectErr) {
+        authState.textContent = describeGoogleAuthError(redirectErr);
+        return;
+      }
+    }
+    authState.textContent = describeGoogleAuthError(err);
+  }
 }
 
 function isCustomMapRun() {
@@ -1049,7 +1090,7 @@ function updateOnlineCount() {
 async function toggleFullscreen() {
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
-    else await document.documentElement.requestFullscreen();
+    else await gameWrap.requestFullscreen();
   } catch {
     mpStatus.textContent = "Full screen is not available here";
   }
@@ -1676,7 +1717,9 @@ fullscreenBtn.addEventListener("click", () => {
 });
 
 document.addEventListener("fullscreenchange", () => {
-  fullscreenBtn.textContent = document.fullscreenElement ? "Exit Full Screen" : "Full Screen";
+  const isGameFullscreen = document.fullscreenElement === gameWrap;
+  gameWrap.classList.toggle("is-fullscreen", isGameFullscreen);
+  fullscreenBtn.textContent = isGameFullscreen ? "Exit Full Screen" : "Full Screen";
 });
 
 function hardReset() {
@@ -1934,13 +1977,13 @@ function spawnObstacle(rng = Math.random) {
   if (generated.obstacle) {
     world.obstacles.push({
       ...generated.obstacle,
-      x: W + 70,
+      x: OBSTACLE_SPAWN_X,
     });
   }
   if (generated.pickup) {
     world.pickups.push({
       ...generated.pickup,
-      x: W + 95,
+      x: PICKUP_SPAWN_X,
     });
   }
 }
@@ -1958,16 +2001,16 @@ function spawnSharedObstacle(index) {
       obstacle: generated.obstacle
         ? {
             ...generated.obstacle,
-            x: W + 70,
-            spawnX: W + 70,
+            x: OBSTACLE_SPAWN_X,
+            spawnX: OBSTACLE_SPAWN_X,
             spawnT,
           }
         : null,
       pickup: generated.pickup
         ? {
             ...generated.pickup,
-            x: W + 95,
-            spawnX: W + 95,
+            x: PICKUP_SPAWN_X,
+            spawnX: PICKUP_SPAWN_X,
             spawnT,
           }
         : null,
@@ -2126,10 +2169,10 @@ function update(dt) {
 
   // Move existing trail points with the world so the trail follows behind the player.
   for (const p of trailPoints) p.x -= world.scroll * dt;
-  trailPoints.push({ x: player.x, y: player.y, life: 0.9 });
+  trailPoints.push({ x: player.x, y: player.y, life: 2.4 });
   for (const p of trailPoints) p.life -= dt;
   while (
-    trailPoints.length > 65 ||
+    trailPoints.length > 140 ||
     (trailPoints[0] && (trailPoints[0].life <= 0 || trailPoints[0].x < -30))
   ) {
     trailPoints.shift();
@@ -2152,7 +2195,7 @@ function update(dt) {
       const lastObstacle = world.obstacles[world.obstacles.length - 1];
       if (lastObstacle && lastObstacle.spawnT !== undefined) {
         const distThen = computeSharedDistance(lastObstacle.spawnT);
-        lastObstacle.x = (lastObstacle.spawnX || W + 70) - (distNow - distThen);
+        lastObstacle.x = (lastObstacle.spawnX || OBSTACLE_SPAWN_X) - (distNow - distThen);
         if (obstacleRightEdge(lastObstacle) < player.x - player.r) {
           lastObstacle.scored = true;
         }
@@ -2168,7 +2211,7 @@ function update(dt) {
     if (mpEnabled && effectiveStart && obstacle.spawnT !== undefined) {
       const distNow = computeSharedDistance(world.time);
       const distThen = computeSharedDistance(obstacle.spawnT);
-      obstacle.x = (obstacle.spawnX || W + 70) - (distNow - distThen);
+      obstacle.x = (obstacle.spawnX || OBSTACLE_SPAWN_X) - (distNow - distThen);
     } else {
       obstacle.x -= world.scroll * dt;
     }
@@ -2186,7 +2229,7 @@ function update(dt) {
     if (mpEnabled && effectiveStart && pickup.spawnT !== undefined) {
       const distNow = computeSharedDistance(world.time);
       const distThen = computeSharedDistance(pickup.spawnT);
-      pickup.x = (pickup.spawnX || W + 95) - (distNow - distThen);
+      pickup.x = (pickup.spawnX || PICKUP_SPAWN_X) - (distNow - distThen);
     } else {
       pickup.x -= world.scroll * dt;
     }
@@ -3087,6 +3130,10 @@ window.addEventListener("keyup", (e) => {
   if (e.code === "Space") onRelease();
 });
 canvas.addEventListener("pointerdown", onPress);
+overlay.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  onPress();
+});
 canvas.addEventListener("pointerdown", (e) => {
   if (!editorEnabled || !editorArmed) return;
   const rect = canvas.getBoundingClientRect();

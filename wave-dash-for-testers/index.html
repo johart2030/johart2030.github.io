@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta
     http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self'; img-src 'self' data: https://*.googleusercontent.com; connect-src https://*.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://firebaseinstallations.googleapis.com https://*.firebaseio.com https://*.firebasedatabase.app https://*.firebaseapp.com wss://*.firebasedatabase.app; frame-src https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+    content="default-src 'self' https: data: blob: wss:; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; connect-src 'self' https: wss:; frame-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
   />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <title>Wave Dash</title>
@@ -107,7 +107,7 @@
       </section>
     </section>
 
-    <section class="game-wrap">
+    <section class="game-wrap" id="gameWrap">
       <canvas id="game" width="960" height="540" aria-label="game canvas"></canvas>
       <div class="game-top">
         <div class="game-stats">
