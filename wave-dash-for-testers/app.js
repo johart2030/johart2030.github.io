@@ -108,7 +108,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 16;
+const SITE_VERSION = 17;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -262,6 +262,8 @@ let localDistance = 0;
 let leaderboardUnsub = null;
 let roomListUnsub = null;
 let onlineCountUnsub = null;
+let presenceRef = null;
+let presencePingTimer = null;
 let editorEnabled = false;
 let editorArmed = false;
 let editorLevel = [];
@@ -1119,23 +1121,52 @@ function updateShopPreview() {
 
 function updateOnlineCount() {
   if (!rtdb || onlineCountUnsub) return;
-  onlineCountUnsub = onValue(dbRef(rtdb, "rooms"), (snap) => {
+  // Watch the dedicated presence/ node which all players (solo + mp) write to.
+  onlineCountUnsub = onValue(dbRef(rtdb, "presence"), (snap) => {
     const now = Date.now() + rtdbOffsetMs;
     const uniquePlayers = new Set();
     if (snap.exists()) {
-      const rooms = snap.val() || {};
-      for (const room of Object.values(rooms)) {
-        const players = room?.players || {};
-        for (const [id, data] of Object.entries(players)) {
-          const lastSeen = coerceTimestampMs(data?.lastSeen);
-          if (lastSeen && now - lastSeen <= MULTI_STALE_MS) {
-            uniquePlayers.add(id);
-          }
+      const entries = snap.val() || {};
+      for (const [id, data] of Object.entries(entries)) {
+        const lastSeen = coerceTimestampMs(data?.lastSeen);
+        if (lastSeen && now - lastSeen <= MULTI_STALE_MS) {
+          uniquePlayers.add(id);
         }
       }
     }
     onlineCountEl.textContent = String(uniquePlayers.size);
   });
+}
+
+// Write a heartbeat to presence/{id} every 4 seconds so this player
+// shows up in the online count even during solo play.
+function startPresence() {
+  if (!rtdb) return;
+  const id = getMultiplayerId();
+  presenceRef = dbRef(rtdb, `presence/${id}`);
+
+  function ping() {
+    if (!presenceRef) return;
+    void dbUpdate(presenceRef, { lastSeen: rtdbServerTimestamp() });
+  }
+
+  ping();
+  if (presencePingTimer) clearInterval(presencePingTimer);
+  presencePingTimer = setInterval(ping, 4000);
+
+  // Remove this player's presence entry when they close the tab.
+  onDisconnect(presenceRef).remove();
+}
+
+function stopPresence() {
+  if (presencePingTimer) {
+    clearInterval(presencePingTimer);
+    presencePingTimer = null;
+  }
+  if (presenceRef) {
+    void dbRemove(presenceRef);
+    presenceRef = null;
+  }
 }
 
 async function toggleFullscreen() {
@@ -1463,7 +1494,11 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
         world.awaitingRaceStart = shouldCountdown;
         if (shouldCountdown) prepareRaceStart();
       }
-    } else if (!startAtMs && !world.raceStartLocalMs) {
+    } else if (!startAtMs && !world.raceStartLocalMs && !world.awaitingRaceStart) {
+      // Only reset if we have no local race start time already in progress.
+      // This guards against the Firebase server timestamp sentinel ({".sv":"timestamp"})
+      // briefly appearing as 0 before the real value arrives, which would
+      // otherwise clobber the countdown the owner just started.
       world.sharedStartMs = null;
       world.raceStartLocalMs = null;
       world.awaitingRaceStart = false;
@@ -1508,9 +1543,12 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
     }
     const count = mpPlayers.size + 1;
     if (mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
-      mpStatus.textContent = `Room ${mpRoomId}: ${count} players`;
+      const isOwner = mpOwnerId === getMultiplayerId();
+      mpStatus.textContent = isOwner
+        ? `Room ${mpRoomId}: owner (${count} player${count !== 1 ? "s" : ""})`
+        : `Room ${mpRoomId}: ${count} player${count !== 1 ? "s" : ""}`;
     } else {
-      mpStatus.textContent = `Multiplayer: ${count} players`;
+      mpStatus.textContent = `Multiplayer: ${count} player${count !== 1 ? "s" : ""}`;
     }
   });
 
@@ -3247,6 +3285,7 @@ mobileFlyBtn.addEventListener("pointerup", onRelease);
 mobileFlyBtn.addEventListener("pointerleave", onRelease);
 mobileFlyBtn.addEventListener("pointercancel", onRelease);
 window.addEventListener("beforeunload", () => {
+  stopPresence();
   if (profile.updatedAt) {
     void savePlayerData();
   }
@@ -3256,6 +3295,7 @@ selectedDifficultyId = normalizeDifficultyId(selectedDifficultyId);
 difficultySelect.value = selectedDifficultyId;
 refreshShopUi();
 updateOnlineCount();
+startPresence();
 setEditorPanelVisible(false);
 if (versionText) versionText.textContent = `v${SITE_VERSION}`;
 updateAdCopy();
