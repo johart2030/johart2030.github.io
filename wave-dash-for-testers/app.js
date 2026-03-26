@@ -108,7 +108,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 17;
+const SITE_VERSION = 18;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -982,27 +982,45 @@ async function createRoom() {
     roomStatus.textContent = "You must be signed in to create a room.";
     return;
   }
+
   roomCreateBtn.disabled = true;
   roomStatus.textContent = "Creating room...";
+
   try {
     const code = generateRoomCode();
     const roomRef = dbRef(rtdb, `rooms/${code}`);
     const ownerId = getMultiplayerId();
     const seed = Math.floor(Math.random() * 1e9) + 1;
-    await dbUpdate(roomRef, {
+
+    console.log("Creating room:", code);
+
+    // ✅ Create FULL room structure
+    await set(roomRef, {
       ownerId,
       createdAt: rtdbServerTimestamp(),
       seed,
       difficulty: getSelectedDifficultyId(),
       startAt: null,
       raceId: 0,
+      players: {
+        [ownerId]: {
+          joinedAt: Date.now(),
+          lastSeen: Date.now()
+        }
+      }
     });
+
+    console.log("Room created:", code);
+
     startMultiplayer(code, { autoStart: false, ownerId });
     setRoomUiState({ inRoom: true, owner: true, code });
+
     roomModal.classList.add("hidden");
     stopRoomList();
-  } catch {
-    roomStatus.textContent = "Failed to create room. Please try again.";
+
+  } catch (e) {
+    console.error("CREATE ROOM ERROR:", e);
+    roomStatus.textContent = "Failed to create room. Check console.";
   } finally {
     roomCreateBtn.disabled = false;
   }
@@ -1013,35 +1031,60 @@ async function joinRoom() {
     roomStatus.textContent = "You must be signed in to join a room.";
     return;
   }
+
   const manualCode = normalizeRoomCode(roomCodeInput.value);
   const listedCode = normalizeRoomCode(roomListSelect.value);
   const code = manualCode || listedCode;
+
   roomCodeInput.value = manualCode;
+
   if (!code) {
-    roomStatus.textContent = "Enter a valid 5-character room code or pick one from the list.";
+    roomStatus.textContent = "Enter a valid 5-character room code or pick one.";
     return;
   }
+
   if (!ROOM_CODE_RE.test(code)) {
     roomStatus.textContent = "Room codes must be exactly 5 letters or numbers.";
     return;
   }
+
   roomJoinBtn.disabled = true;
   roomStatus.textContent = "Joining room...";
+
   try {
     const roomRef = dbRef(rtdb, `rooms/${code}`);
     const snap = await dbGet(roomRef);
+
     if (!snap.exists()) {
-      roomStatus.textContent = "Room not found. Check the code and try again.";
+      roomStatus.textContent = "Room not found. Check the code.";
       return;
     }
+
     const data = snap.val() || {};
-    const isOwner = data.ownerId === getMultiplayerId();
+    const playerId = getMultiplayerId();
+    const isOwner = data.ownerId === playerId;
+
+    console.log("Joining room:", code);
+
+    // ✅ Add player to room
+    await update(dbRef(rtdb, `rooms/${code}/players`), {
+      [playerId]: {
+        joinedAt: Date.now(),
+        lastSeen: Date.now()
+      }
+    });
+
+    console.log("Joined room:", code);
+
     startMultiplayer(code, { autoStart: false, ownerId: data.ownerId || null });
     setRoomUiState({ inRoom: true, owner: isOwner, code });
+
     roomModal.classList.add("hidden");
     stopRoomList();
-  } catch {
-    roomStatus.textContent = "Failed to join room. Please try again.";
+
+  } catch (e) {
+    console.error("JOIN ROOM ERROR:", e);
+    roomStatus.textContent = "Failed to join room. Check console.";
   } finally {
     roomJoinBtn.disabled = false;
   }
@@ -1055,30 +1098,40 @@ function leaveRoom() {
 
 function startRoomList() {
   if (!rtdb || roomListUnsub) return;
+
   const roomsRef = dbRef(rtdb, "rooms");
+
   roomListUnsub = onValue(roomsRef, (snap) => {
     roomListSelect.innerHTML = "";
+
     const placeholder = document.createElement("option");
     placeholder.value = "";
     placeholder.textContent = "Select a room";
     roomListSelect.appendChild(placeholder);
 
     if (!snap.exists()) return;
+
     const rooms = snap.val() || {};
     const now = Date.now();
+
     for (const [code, data] of Object.entries(rooms)) {
       if (!code || code === MULTI_PUBLIC_ROOM_ID) continue;
+
       const players = data.players || {};
-      // Only count players seen recently (not stale)
+
       const activePlayers = Object.values(players).filter((p) => {
         const lastSeen = coerceTimestampMs(p?.lastSeen);
         return lastSeen && now - lastSeen <= MULTI_STALE_MS;
       });
+
       const count = activePlayers.length;
-      const difficultyName = DIFFICULTIES[normalizeDifficultyId(data.difficulty)].name;
+      const difficultyName =
+        DIFFICULTIES[normalizeDifficultyId(data.difficulty)].name;
+
       const option = document.createElement("option");
       option.value = code;
       option.textContent = `${code} — ${count} player${count !== 1 ? "s" : ""} (${difficultyName})`;
+
       roomListSelect.appendChild(option);
     }
   });
