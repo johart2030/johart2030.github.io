@@ -37,3 +37,5 @@ Feature List
 16. Add support for arrow keys, w key, and sayo device
 
 17. Achievements
+
+18. Add click and fps counter
