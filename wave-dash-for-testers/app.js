@@ -1,4 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
 import {
   createUserWithEmailAndPassword,
   getAuth,
@@ -9,7 +9,7 @@ import {
   signInWithRedirect,
   signOut,
   updateProfile,
-} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
 import {
   doc,
   getDoc,
@@ -21,7 +21,7 @@ import {
   query,
   orderBy,
   limit,
-} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
 import {
   getDatabase,
   ref as dbRef,
@@ -32,7 +32,7 @@ import {
   serverTimestamp as rtdbServerTimestamp,
   remove as dbRemove,
   runTransaction,
-} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-database.js";
+} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 import { enableCloudSave, firebaseConfig } from "./firebase-config.js";
 
 const canvas = document.getElementById("game");
@@ -408,15 +408,27 @@ mpToggleBtn.addEventListener("click", () => {
   }
   if (!uid) {
     mpStatus.textContent = "Multiplayer: Sign in required";
+    authModal.classList.remove("hidden");
     return;
   }
-  if (mpEnabled) stopMultiplayer();
-  else {
+  if (mpEnabled) {
+    stopMultiplayer();
+    hardReset();
+  } else {
     startMultiplayer(MULTI_PUBLIC_ROOM_ID, { autoStart: true });
   }
 });
 
 mpRoomBtn.addEventListener("click", () => {
+  if (!rtdb) {
+    mpStatus.textContent = "Multiplayer: Firebase not configured";
+    return;
+  }
+  if (!uid) {
+    mpStatus.textContent = "Multiplayer: Sign in required";
+    authModal.classList.remove("hidden");
+    return;
+  }
   roomModal.classList.remove("hidden");
   startRoomList();
 });
@@ -886,9 +898,10 @@ async function loadRoomState(roomRef) {
 async function resetRoomSeed(roomRef) {
   try {
     const difficultyId = getSelectedDifficultyId();
+    const newSeed = Math.floor(Math.random() * 1e9) + 1;
     await runTransaction(roomRef, (current) => {
       const next = { ...(current || {}) };
-      if (!next.seed) next.seed = Math.floor(Math.random() * 1e9) + 1;
+      next.seed = newSeed; // Always generate a fresh seed for each race
       next.difficulty = difficultyId;
       next.startAt = rtdbServerTimestamp();
       next.raceId = (Number(current?.raceId || 0) + 1) || 1;
@@ -919,8 +932,8 @@ function subscribeLeaderboard() {
       const data = docSnap.data();
       const li = document.createElement("li");
       const name = data.name || "Player";
-      const score = Number(data.bestScore || 0);
-      li.textContent = `${name}: ${score}`;
+      const displayScore = Number(data.bestScore || 0);
+      li.textContent = `${name}: ${displayScore}`;
       leaderboardList.appendChild(li);
     });
   });
@@ -951,60 +964,91 @@ function setRoomUiState({ inRoom, owner, code }) {
   roomCodeDisplay.textContent = code ? `Room code: ${code}` : "";
   const difficultyName = DIFFICULTIES[getCurrentDifficultyId()].name;
   if (inRoom) {
-    roomStatus.textContent = owner
-      ? `You are the room owner. ${difficultyName} mode is armed for the next start.`
-      : `Waiting for the owner to start the ${difficultyName} race.`;
+    const ownerMsg = `You are the room owner. ${difficultyName} mode is armed for the next start.`;
+    const guestMsg = `Waiting for the owner to start the ${difficultyName} race.`;
+    roomStatus.textContent = owner ? ownerMsg : guestMsg;
+    mpStatus.textContent = owner
+      ? `Room ${code}: you are owner`
+      : `Room ${code}: waiting for start`;
   } else {
     roomStatus.textContent = "Create or join a room to race together.";
   }
 }
 
 async function createRoom() {
-  if (!rtdb || !uid) return;
-  const code = generateRoomCode();
-  const roomRef = dbRef(rtdb, `rooms/${code}`);
-  const ownerId = getMultiplayerId();
-  const seed = Math.floor(Math.random() * 1e9) + 1;
-  await dbUpdate(roomRef, {
-    ownerId,
-    createdAt: rtdbServerTimestamp(),
-    seed,
-    difficulty: getSelectedDifficultyId(),
-    startAt: null,
-    raceId: 0,
-  });
-  startMultiplayer(code, { autoStart: false, ownerId });
-  setRoomUiState({ inRoom: true, owner: true, code });
+  if (!rtdb || !uid) {
+    roomStatus.textContent = "You must be signed in to create a room.";
+    return;
+  }
+  roomCreateBtn.disabled = true;
+  roomStatus.textContent = "Creating room...";
+  try {
+    const code = generateRoomCode();
+    const roomRef = dbRef(rtdb, `rooms/${code}`);
+    const ownerId = getMultiplayerId();
+    const seed = Math.floor(Math.random() * 1e9) + 1;
+    await dbUpdate(roomRef, {
+      ownerId,
+      createdAt: rtdbServerTimestamp(),
+      seed,
+      difficulty: getSelectedDifficultyId(),
+      startAt: null,
+      raceId: 0,
+    });
+    startMultiplayer(code, { autoStart: false, ownerId });
+    setRoomUiState({ inRoom: true, owner: true, code });
+    roomModal.classList.add("hidden");
+    stopRoomList();
+  } catch {
+    roomStatus.textContent = "Failed to create room. Please try again.";
+  } finally {
+    roomCreateBtn.disabled = false;
+  }
 }
 
 async function joinRoom() {
-  if (!rtdb || !uid) return;
+  if (!rtdb || !uid) {
+    roomStatus.textContent = "You must be signed in to join a room.";
+    return;
+  }
   const manualCode = normalizeRoomCode(roomCodeInput.value);
   const listedCode = normalizeRoomCode(roomListSelect.value);
   const code = manualCode || listedCode;
   roomCodeInput.value = manualCode;
   if (!code) {
-    roomStatus.textContent = "Enter a valid 5-character room code.";
+    roomStatus.textContent = "Enter a valid 5-character room code or pick one from the list.";
     return;
   }
   if (!ROOM_CODE_RE.test(code)) {
-    roomStatus.textContent = "Room codes must be 5 letters or numbers.";
+    roomStatus.textContent = "Room codes must be exactly 5 letters or numbers.";
     return;
   }
-  const roomRef = dbRef(rtdb, `rooms/${code}`);
-  const snap = await dbGet(roomRef);
-  if (!snap.exists()) {
-    roomStatus.textContent = "Room not found.";
-    return;
+  roomJoinBtn.disabled = true;
+  roomStatus.textContent = "Joining room...";
+  try {
+    const roomRef = dbRef(rtdb, `rooms/${code}`);
+    const snap = await dbGet(roomRef);
+    if (!snap.exists()) {
+      roomStatus.textContent = "Room not found. Check the code and try again.";
+      return;
+    }
+    const data = snap.val() || {};
+    const isOwner = data.ownerId === getMultiplayerId();
+    startMultiplayer(code, { autoStart: false, ownerId: data.ownerId || null });
+    setRoomUiState({ inRoom: true, owner: isOwner, code });
+    roomModal.classList.add("hidden");
+    stopRoomList();
+  } catch {
+    roomStatus.textContent = "Failed to join room. Please try again.";
+  } finally {
+    roomJoinBtn.disabled = false;
   }
-  const data = snap.val() || {};
-  startMultiplayer(code, { autoStart: false, ownerId: data.ownerId || null });
-  setRoomUiState({ inRoom: true, owner: false, code });
 }
 
 function leaveRoom() {
   stopMultiplayer();
   setRoomUiState({ inRoom: false, owner: false, code: "" });
+  hardReset();
 }
 
 function startRoomList() {
@@ -1019,13 +1063,20 @@ function startRoomList() {
 
     if (!snap.exists()) return;
     const rooms = snap.val() || {};
+    const now = Date.now();
     for (const [code, data] of Object.entries(rooms)) {
       if (!code || code === MULTI_PUBLIC_ROOM_ID) continue;
-      const count = data.players ? Object.keys(data.players).length : 0;
+      const players = data.players || {};
+      // Only count players seen recently (not stale)
+      const activePlayers = Object.values(players).filter((p) => {
+        const lastSeen = coerceTimestampMs(p?.lastSeen);
+        return lastSeen && now - lastSeen <= MULTI_STALE_MS;
+      });
+      const count = activePlayers.length;
       const difficultyName = DIFFICULTIES[normalizeDifficultyId(data.difficulty)].name;
       const option = document.createElement("option");
       option.value = code;
-      option.textContent = `${code} (${count} players, ${difficultyName})`;
+      option.textContent = `${code} — ${count} player${count !== 1 ? "s" : ""} (${difficultyName})`;
       roomListSelect.appendChild(option);
     }
   });
@@ -1417,6 +1468,9 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
       world.raceStartLocalMs = null;
       world.awaitingRaceStart = false;
       world.joinTimeSec = 0;
+      world.obstacles = [];
+      world.pickups = [];
+      score = 0;
       state = "idle";
       resetPlayerToCenter("Waiting for the race to start.");
     }
@@ -1497,6 +1551,8 @@ function stopMultiplayer() {
   applyDifficultySettings();
   difficultySelect.value = getSelectedDifficultyId();
   currentRunCountsForProgress = true;
+  state = "idle";
+  score = 0;
 }
 
 function queueSave() {
@@ -1725,6 +1781,8 @@ document.addEventListener("fullscreenchange", () => {
 function hardReset() {
   state = "idle";
   score = 0;
+  localClears = 0;
+  localDistance = 0;
   applyDifficultySettings();
   world.obstacles = [];
   world.pickups = [];
@@ -1735,6 +1793,7 @@ function hardReset() {
   trailPoints.length = 0;
   player.y = H * 0.5;
   player.vy = 0;
+  hold = false;
   currentRunCountsForProgress = true;
   showOverlay("Press Space To Start", "Avoid randomized hazards and earn points to buy styles.");
 }
@@ -1866,6 +1925,10 @@ function lose() {
   }
   if (mpEnabled && mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
     showOverlay("Crashed", `Score ${rounded}. Wait for the room owner to start the next race.`);
+    return;
+  }
+  if (mpEnabled && mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+    showOverlay("Crashed", `Score ${rounded}. Press Space or tap to re-enter the race.`);
     return;
   }
   showOverlay("Crashed", `Score ${rounded}. Press Space or click to restart.`);
@@ -2130,6 +2193,7 @@ function update(dt) {
     }
     world.awaitingRaceStart = false;
     if (world.raceId) world.raceActiveId = world.raceId;
+    state = "idle"; // ensure startGame() transitions cleanly from any prior state
     hideOverlay();
     startGame();
   }
@@ -2422,9 +2486,10 @@ function drawTrailById(id, color, points) {
       return;
     }
     case "glass": {
+      ctx.save();
       ctx.globalAlpha = 0.6;
       drawTrailPolyline(points, color.trail, 3.6);
-      ctx.globalAlpha = 1;
+      ctx.restore();
       drawTrailPolyline(points, "#ffffff", 1.2);
       return;
     }
@@ -2700,6 +2765,7 @@ function drawOtherPlayers() {
     ctx.font = "12px Segoe UI, Tahoma, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(name, relX, (data.y || 0) - 16);
+    ctx.textAlign = "left"; // reset so other draws are not affected
   }
 }
 
@@ -3107,9 +3173,31 @@ function hideOverlay() {
 function onPress() {
   enableMusicFromGesture();
   if (editorEnabled && editorArmed) return;
-  if (mpEnabled && mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID && state === "dead") return;
-  if (mpEnabled && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
+  // In private rooms, only the race start countdown triggers startGame — not the player pressing.
+  if (mpEnabled && mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
     hold = true;
+    return;
+  }
+  // In public rooms after dying, pressing restarts as a free-fly spectator from current position.
+  if (mpEnabled && mpRoomId === MULTI_PUBLIC_ROOM_ID && state === "dead") {
+    hold = true;
+    world.publicStartOverrideMs = Date.now() + rtdbOffsetMs;
+    world.joinTimeSec = 0;
+    world.obstacles = [];
+    world.pickups = [];
+    world.spawnIndex = 0;
+    world.spawnTimer = 0;
+    world.center = H * 0.5;
+    world.time = 0;
+    localDistance = 0;
+    localClears = 0;
+    score = 0;
+    trailPoints.length = 0;
+    player.y = H * 0.5;
+    player.vy = 0;
+    currentRunCountsForProgress = true;
+    state = "running";
+    hideOverlay();
     return;
   }
   hold = true;
@@ -3129,21 +3217,24 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => {
   if (e.code === "Space") onRelease();
 });
-canvas.addEventListener("pointerdown", onPress);
+canvas.addEventListener("pointerdown", (e) => {
+  // Editor placement takes priority when armed.
+  if (editorEnabled && editorArmed) {
+    const rect = canvas.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
+    const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
+    const kind = editorKind.value;
+    editorLevel.push(editorObstacleFromClick(kind, x, y));
+    editorMsg.textContent = `Placed ${kind} (${editorLevel.length}).`;
+    editorArmed = false;
+    editorAddBtn.textContent = "Place On Click";
+    return;
+  }
+  onPress();
+});
 overlay.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   onPress();
-});
-canvas.addEventListener("pointerdown", (e) => {
-  if (!editorEnabled || !editorArmed) return;
-  const rect = canvas.getBoundingClientRect();
-  const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
-  const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
-  const kind = editorKind.value;
-  editorLevel.push(editorObstacleFromClick(kind, x, y));
-  editorMsg.textContent = `Placed ${kind} (${editorLevel.length}).`;
-  editorArmed = false;
-  editorAddBtn.textContent = "Place On Click";
 });
 window.addEventListener("pointerup", onRelease);
 window.addEventListener("pointercancel", onRelease);
