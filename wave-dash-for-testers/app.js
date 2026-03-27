@@ -28,6 +28,7 @@ import {
   onValue,
   update as dbUpdate,
   get as dbGet,
+  set as dbSet,               // ✅ ADD THIS
   onDisconnect,
   serverTimestamp as rtdbServerTimestamp,
   remove as dbRemove,
@@ -108,7 +109,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 18;
+const SITE_VERSION = 19;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -995,7 +996,7 @@ async function createRoom() {
     console.log("Creating room:", code);
 
     // ✅ Create FULL room structure
-    await set(roomRef, {
+    await dbSet(roomRef, {
       ownerId,
       createdAt: rtdbServerTimestamp(),
       seed,
@@ -1006,8 +1007,8 @@ async function createRoom() {
         [ownerId]: {
           joinedAt: Date.now(),
           lastSeen: Date.now()
-        }
       }
+    }
     });
 
     console.log("Room created:", code);
@@ -1067,8 +1068,8 @@ async function joinRoom() {
     console.log("Joining room:", code);
 
     // ✅ Add player to room
-    await update(dbRef(rtdb, `rooms/${code}/players`), {
-      [playerId]: {
+    await dbUpdate(dbRef(rtdb, `rooms/${code}/players`), {
+      [getMultiplayerId()]: {
         joinedAt: Date.now(),
         lastSeen: Date.now()
       }
