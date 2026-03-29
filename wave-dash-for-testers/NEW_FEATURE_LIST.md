@@ -29,3 +29,15 @@ Feature List
 12. Dev-only sprite, trail, and color
 
 13. Add random music
+
+14. Add player levels/xp
+
+15. Make player leaderboard visible to all players, including signed out players 
+
+16. Add support for arrow keys, w key, and sayo device
+
+17. Achievements
+
+18. Add click and fps counter
+
+19. Cache the game for offline play

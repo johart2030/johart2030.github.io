@@ -39,3 +39,5 @@ Feature List
 17. Achievements
 
 18. Add click and fps counter
+
+19. Cache the game for offline play
