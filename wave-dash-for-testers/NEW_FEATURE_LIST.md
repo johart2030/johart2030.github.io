@@ -41,3 +41,5 @@ Feature List
 18. Add click and fps counter
 
 19. Cache the game for offline play
+
+20. Add more stuff to level editor (like speed stuff) and make it more ui friendly and make it more like an editor like gd
