@@ -19,7 +19,7 @@ window.handleCredentialResponse = (response) => {
 // 🔥 One Tap init
 window.addEventListener("load", () => {
   google.accounts.id.initialize({
-    client_id: "420407589339-p35s2lamqvskogre5behff2shqf88mdv.apps.googleusercontent.com",
+    client_id: "92140525618-gffm531n2kucvu82s3g4vanobdgp1cqa.apps.googleusercontent.com",
     callback: handleCredentialResponse,
     auto_select: true
   });
