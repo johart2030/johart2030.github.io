@@ -45,3 +45,5 @@ Feature List
 20. Add more stuff to level editor (like speed stuff) and make it more ui friendly and make it more like an editor like gd
 
 21. Account button shows either google profile picture or first etter of email if signed in, and just turn into a login button if logged out
+
+22. When you hover over the online number it will tell you what users are online
