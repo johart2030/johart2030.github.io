@@ -64,6 +64,69 @@
             object-fit: cover;
             border: 3px solid #30363d;
         }
+
+.popular {
+    position: relative;
+    display: block;
+    text-decoration: none;
+    color: #000;
+    background: linear-gradient(135deg, #ffd700, #ffea70);
+    padding: 15px;
+    margin: 12px 0;
+    border-radius: 10px;
+    font-size: 1.2rem;
+    text-align: center;
+    transition: 0.25s;
+    border: 1px solid #30363d;
+    overflow: hidden;
+    font-weight: bold;
+}
+
+/* ✨ Gleam animation */
+.popular::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -75%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(
+        120deg,
+        transparent,
+        rgba(255,255,255,0.6),
+        transparent
+    );
+    transform: skewX(-20deg);
+}
+
+.popular:hover::before {
+    animation: shine 0.8s forwards;
+}
+
+@keyframes shine {
+    100% {
+        left: 125%;
+    }
+}
+
+/* 🌟 Glow on hover */
+.popular:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
+}
+
+.tag {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: #000;
+    color: #ffd700;
+    font-size: 0.65rem;
+    padding: 3px 6px;
+    border-radius: 6px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
     </style>
 </head>
 <body>
@@ -74,6 +137,11 @@
     <p>Welcome to my GitHub link hub.</p>
 
     <div class="container">
+
+        <a class="popular" href="https://johart2030.github.io/wave-dash-new/" target="_blank">
+            <span class="tag">POPULAR</span>
+            Wave Dash
+        </a>
 
         <!-- GitHub Profile -->
         <a class="link" href="https://github.com/johart2030" target="_blank">
@@ -96,10 +164,6 @@
         
         <a class="link" href="https://johart2030.github.io/peg-game/peg-game.html" target="_self">
             Peg Game
-        </a>
-
-        <a class="link" href="https://johart2030.github.io/wave-dash-new/" target="_blank">
-            Wave Dash
         </a>
         
         <a class="link" href="https://johart2030.github.io/issues-page/issues-page.html" target="_blank">
