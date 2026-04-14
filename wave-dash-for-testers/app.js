@@ -109,7 +109,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 22.0;
+const SITE_VERSION = 23.1;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -371,7 +371,7 @@ if (validFirebaseConfig(firebaseConfig)) {
       authState.textContent = `Signed in: ${user.displayName || user.email || user.uid} (syncing...)`;
       openAuthBtn.textContent = "Account";
       logoutBtn.disabled = false;
-      await loadPlayerData();
+      await loadPlayerData(user.uid);
       authState.textContent = `Signed in: ${user.displayName || user.email || user.uid}`;
       authPassword.value = "";
       subscribeLeaderboard();
@@ -943,13 +943,10 @@ function subscribeLeaderboard() {
 }
 
 function getMultiplayerId() {
-  if (uid) return uid;
-  const key = "wdash-guest-id";
-  const existing = localStorage.getItem(key);
-  if (existing) return existing;
-  const generated = `guest-${Math.random().toString(36).slice(2, 10)}`;
-  localStorage.setItem(key, generated);
-  return generated;
+  if (window.firebaseAuth?.currentUser) {
+    return window.firebaseAuth.currentUser.uid;
+  }
+  return null; // or block multiplayer until login
 }
 
 function generateRoomCode() {
@@ -1366,7 +1363,7 @@ function mergeProfiles(localProfile, remoteProfile) {
   };
 }
 
-async function loadPlayerData() {
+async function loadPlayerData(uid) {
   if (!enableCloudSave || !uid || !db) return;
   try {
     const ref = doc(db, "players", uid);
