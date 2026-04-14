@@ -109,7 +109,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 23.1;
+const SITE_VERSION = 23.2;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -1191,21 +1191,32 @@ function updateOnlineCount() {
 
 // Write a heartbeat to presence/{id} every 4 seconds so this player
 // shows up in the online count even during solo play.
-function startPresence() {
+function startPresence(user) {
   if (!rtdb) return;
-  const id = getMultiplayerId();
-  presenceRef = dbRef(rtdb, `presence/${id}`);
-
-  function ping() {
-    if (!presenceRef) return;
-    void dbUpdate(presenceRef, { lastSeen: rtdbServerTimestamp() });
+  if (!user?.uid) {
+    console.error("startPresence blocked: no user");
+    return;
   }
 
-  ping();
-  if (presencePingTimer) clearInterval(presencePingTimer);
-  presencePingTimer = setInterval(ping, 4000);
+  const uid = user.uid;
 
-  // Remove this player's presence entry when they close the tab.
+  const presenceRef = dbRef(rtdb, `presence/${uid}`);
+
+  function ping() {
+    void dbUpdate(presenceRef, {
+      lastSeen: rtdbServerTimestamp(),
+      online: true
+    });
+  }
+
+  // initial ping
+  ping();
+
+  // heartbeat
+  if (window.presencePingTimer) clearInterval(window.presencePingTimer);
+  window.presencePingTimer = setInterval(ping, 4000);
+
+  // cleanup on exit
   onDisconnect(presenceRef).remove();
 }
 
