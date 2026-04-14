@@ -1,5 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
 import {
   createUserWithEmailAndPassword,
   getAuth,
@@ -7,9 +6,10 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
   updateProfile,
-} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
 import {
   doc,
   getDoc,
@@ -21,22 +21,26 @@ import {
   query,
   orderBy,
   limit,
-} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
 import {
   getDatabase,
   ref as dbRef,
   onValue,
   update as dbUpdate,
   get as dbGet,
+  set as dbSet,               // ✅ ADD THIS
   onDisconnect,
   serverTimestamp as rtdbServerTimestamp,
   remove as dbRemove,
   runTransaction,
-} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-database.js";
+} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
 import { enableCloudSave, firebaseConfig } from "./firebase-config.js";
 
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const gameWrap = document.getElementById("gameWrap");
+const difficultySelect = document.getElementById("difficultySelect");
+const musicToggleBtn = document.getElementById("musicToggleBtn");
 const scoreEl = document.getElementById("score");
 const bestEl = document.getElementById("best");
 const coinsEl = document.getElementById("coins");
@@ -61,6 +65,8 @@ const colorSelect = document.getElementById("colorSelect");
 const spriteActionBtn = document.getElementById("spriteActionBtn");
 const trailActionBtn = document.getElementById("trailActionBtn");
 const colorActionBtn = document.getElementById("colorActionBtn");
+const shopPreviewTitle = document.getElementById("shopPreviewTitle");
+const shopPreviewText = document.getElementById("shopPreviewText");
 const shopMsg = document.getElementById("shopMsg");
 const leaderboardList = document.getElementById("leaderboardList");
 const editorToggleBtn = document.getElementById("editorToggleBtn");
@@ -76,9 +82,13 @@ const editorClearBtn = document.getElementById("editorClearBtn");
 const editorMsg = document.getElementById("editorMsg");
 const editorPanelToggleBtn = document.getElementById("editorPanelToggleBtn");
 const editorPanel = document.getElementById("editorPanel");
+const adCopy = document.getElementById("adCopy");
+const mobileFlyBtn = document.getElementById("mobileFlyBtn");
 const mpToggleBtn = document.getElementById("mpToggleBtn");
 const mpStatus = document.getElementById("mpStatus");
+const onlineCountEl = document.getElementById("onlineCount");
 const versionText = document.getElementById("versionText");
+const fullscreenBtn = document.getElementById("fullscreenBtn");
 const mpRoomBtn = document.getElementById("mpRoomBtn");
 const roomModal = document.getElementById("roomModal");
 const closeRoomBtn = document.getElementById("closeRoomBtn");
@@ -95,12 +105,64 @@ const W = canvas.width;
 const H = canvas.height;
 const PROFILE_KEY = "wdash-profile";
 const LEGACY_BEST_KEY = "wdash-best";
-const OBSTACLE_CLEAR_POINTS = 100;
 const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 13;
+const SITE_VERSION = 21.0;
+const REMOTE_NAME_LIMIT = 18;
+const DIFFICULTY_KEY = "wdash-difficulty";
+const MUSIC_KEY = "wdash-music-enabled";
+const ROOM_CODE_RE = /^[A-Z2-9]{5}$/;
+const PLAYER_SCREEN_X = 280;
+const OBSTACLE_SPAWN_X = W + 28;
+const PICKUP_SPAWN_X = W + 54;
+
+const DEV_UIDS = new Set([]);
+const DEV_EMAILS = new Set([]);
+
+const DIFFICULTIES = {
+  easy: {
+    id: "easy",
+    name: "Easy",
+    baseScroll: 225,
+    speedGrowth: 0.048,
+    spawnEvery: 1.12,
+    centerJitter: 135,
+    gapScale: 1.1,
+    pickupBias: 0.7,
+    clearPoints: 80,
+  },
+  medium: {
+    id: "medium",
+    name: "Medium",
+    baseScroll: 260,
+    speedGrowth: 0.064,
+    spawnEvery: 0.95,
+    centerJitter: 170,
+    gapScale: 1,
+    pickupBias: 0.55,
+    clearPoints: 100,
+  },
+  hard: {
+    id: "hard",
+    name: "Hard",
+    baseScroll: 300,
+    speedGrowth: 0.084,
+    spawnEvery: 0.8,
+    centerJitter: 205,
+    gapScale: 0.87,
+    pickupBias: 0.42,
+    clearPoints: 125,
+  },
+};
+
+const HOUSE_ADS = [
+  "Need a break between runs? Challenge friends in a private room and settle it clean.",
+  "House Ad: Try Hard mode if Medium starts feeling comfortable. It ramps faster and pays more.",
+  "Wave Dash tip: custom maps are for practice now, not farming points. Use them to learn patterns.",
+  "Sponsored by your next best score. Full screen and music both work better after one tap.",
+];
 
 const SPRITES = [
   { id: "dart", name: "Dart", cost: 0, style: "dart" },
@@ -123,6 +185,7 @@ const SPRITES = [
   { id: "flux", name: "Flux", cost: 70000, style: "dart" },
   { id: "wraith", name: "Wraith", cost: 90000, style: "box" },
   { id: "oracle", name: "Oracle", cost: 100000, style: "chevron" },
+  { id: "dev-core", name: "Dev Core", cost: 0, style: "orb", devOnly: true },
 ];
 
 const TRAILS = [
@@ -146,6 +209,7 @@ const TRAILS = [
   { id: "strobe", name: "Strobe", cost: 70000, style: "dashed" },
   { id: "spectrum", name: "Spectrum", cost: 90000, style: "rainbow" },
   { id: "celestial", name: "Celestial", cost: 100000, style: "rainbow" },
+  { id: "dev-signal", name: "Dev Signal", cost: 0, style: "neon", devOnly: true },
 ];
 
 const COLORS = [
@@ -169,6 +233,7 @@ const COLORS = [
   { id: "ultraviolet", name: "Ultraviolet", cost: 70000, primary: "#7a6bff", accent: "#4430d9", trail: "rgba(122,107,255,0.95)", glow: "rgba(90,80,230,0.25)" },
   { id: "aurora", name: "Aurora", cost: 90000, primary: "#7dffea", accent: "#31c9b6", trail: "rgba(125,255,234,0.95)", glow: "rgba(90,220,200,0.25)" },
   { id: "eclipse", name: "Eclipse", cost: 100000, primary: "#f2f2ff", accent: "#202235", trail: "rgba(242,242,255,0.95)", glow: "rgba(200,200,230,0.25)" },
+  { id: "dev-grid", name: "Dev Grid", cost: 0, primary: "#ffffff", accent: "#00f0ff", trail: "rgba(255,255,255,0.95)", glow: "rgba(0,240,255,0.34)", devOnly: true },
 ];
 
 let state = "idle";
@@ -197,26 +262,38 @@ let mpTrails = new Map();
 let localDistance = 0;
 let leaderboardUnsub = null;
 let roomListUnsub = null;
+let onlineCountUnsub = null;
+let presenceRef = null;
+let presencePingTimer = null;
 let editorEnabled = false;
 let editorArmed = false;
 let editorLevel = [];
+let currentRunCountsForProgress = true;
+let selectedDifficultyId = localStorage.getItem(DIFFICULTY_KEY) || "medium";
+let musicEnabled = localStorage.getItem(MUSIC_KEY) === "true";
+let adIndex = Math.floor(Math.random() * HOUSE_ADS.length);
+let audioCtx = null;
+let musicTimer = null;
+let musicNextAt = 0;
+let sharedSpawnCache = [];
 
 let profile = loadLocalProfile();
 let best = profile.bestScore;
 
-const player = { x: 170, y: H * 0.5, vy: 0, r: 11 };
+const player = { x: PLAYER_SCREEN_X, y: H * 0.5, vy: 0, r: 11 };
 const trailPoints = [];
 
 const world = {
-  scroll: 260,
+  scroll: DIFFICULTIES.medium.baseScroll,
   speedScale: 1,
   obstacles: [],
   pickups: [],
   spawnTimer: 0,
-  spawnEvery: 0.95,
+  spawnEvery: DIFFICULTIES.medium.spawnEvery,
   center: H * 0.5,
   time: 0,
   sharedSeed: null,
+  sharedDifficulty: null,
   sharedStartMs: null,
   raceStartLocalMs: null,
   raceId: 0,
@@ -236,11 +313,6 @@ function validFirebaseConfig(config) {
 
 if (validFirebaseConfig(firebaseConfig)) {
   const app = initializeApp(firebaseConfig);
-  try {
-    getAnalytics(app);
-  } catch {
-    // Analytics can fail in local or non-standard contexts.
-  }
 
   db = getFirestore(app);
   rtdb = getDatabase(app);
@@ -251,43 +323,41 @@ if (validFirebaseConfig(firebaseConfig)) {
   const provider = new GoogleAuthProvider();
 
   googleLoginBtn.addEventListener("click", async () => {
-    try {
-      await signInWithPopup(auth, provider);
-      authModal.classList.add("hidden");
-    } catch (err) {
-      authState.textContent = `Login failed: ${err.code || "unknown-error"}`;
-    }
+    await startGoogleSignIn(auth, provider);
   });
 
   emailLoginBtn.addEventListener("click", async () => {
-    const email = authEmail.value.trim();
+    const email = normalizeEmail(authEmail.value);
     const password = authPassword.value;
-    if (!email || !password) {
-      authState.textContent = "Enter email and password.";
+    authEmail.value = email;
+    if (!isValidEmail(email) || !isStrongEnoughPassword(password)) {
+      authState.textContent = "Enter a valid email and password.";
       return;
     }
     try {
       await signInWithEmailAndPassword(auth, email, password);
       authModal.classList.add("hidden");
-    } catch (err) {
-      authState.textContent = `Email login failed: ${err.code || "unknown-error"}`;
+    } catch {
+      authState.textContent = "Email login failed. Please check your credentials.";
     }
   });
 
   emailSignupBtn.addEventListener("click", async () => {
-    const email = authEmail.value.trim();
+    const email = normalizeEmail(authEmail.value);
     const password = authPassword.value;
-    const name = authName.value.trim();
-    if (!email || !password) {
-      authState.textContent = "Enter email and password.";
+    const name = sanitizeDisplayName(authName.value);
+    authEmail.value = email;
+    authName.value = name;
+    if (!isValidEmail(email) || !isStrongEnoughPassword(password)) {
+      authState.textContent = "Use a valid email and a password with at least 8 characters.";
       return;
     }
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       if (name) await updateProfile(cred.user, { displayName: name });
       authModal.classList.add("hidden");
-    } catch (err) {
-      authState.textContent = `Sign up failed: ${err.code || "unknown-error"}`;
+    } catch {
+      authState.textContent = "Sign up failed. Please verify your details and try again.";
     }
   });
 
@@ -341,17 +411,58 @@ mpToggleBtn.addEventListener("click", () => {
   }
   if (!uid) {
     mpStatus.textContent = "Multiplayer: Sign in required";
+    authModal.classList.remove("hidden");
     return;
   }
-  if (mpEnabled) stopMultiplayer();
-  else {
+  if (mpEnabled) {
+    stopMultiplayer();
+    hardReset();
+  } else {
     startMultiplayer(MULTI_PUBLIC_ROOM_ID, { autoStart: true });
   }
 });
 
 mpRoomBtn.addEventListener("click", () => {
+  if (!rtdb) {
+    mpStatus.textContent = "Multiplayer: Firebase not configured";
+    return;
+  }
+  if (!uid) {
+    mpStatus.textContent = "Multiplayer: Sign in required";
+    authModal.classList.remove("hidden");
+    return;
+  }
   roomModal.classList.remove("hidden");
   startRoomList();
+});
+
+difficultySelect.addEventListener("change", () => {
+  selectedDifficultyId = normalizeDifficultyId(difficultySelect.value);
+  localStorage.setItem(DIFFICULTY_KEY, selectedDifficultyId);
+  if (!mpEnabled) {
+    world.sharedDifficulty = null;
+    applyDifficultySettings();
+    hardReset();
+    shopMsg.textContent = `${DIFFICULTIES[selectedDifficultyId].name} mode selected.`;
+    return;
+  }
+  if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+    mpStatus.textContent = `Public room difficulty stays shared. Rejoin to change local solo mode.`;
+    difficultySelect.value = getCurrentDifficultyId();
+    return;
+  }
+  const isOwner = mpOwnerId === getMultiplayerId();
+  if (!isOwner) {
+    roomStatus.textContent = "Only the room owner can change private room difficulty.";
+    difficultySelect.value = getCurrentDifficultyId();
+    return;
+  }
+  roomStatus.textContent = `${DIFFICULTIES[selectedDifficultyId].name} will apply on the next room start.`;
+});
+
+musicToggleBtn.addEventListener("click", () => {
+  if (musicEnabled) stopMusic();
+  else startMusic();
 });
 
 closeRoomBtn.addEventListener("click", () => {
@@ -441,6 +552,234 @@ function coerceTimestampMs(value) {
   return 0;
 }
 
+function sanitizePlayerName(value) {
+  const trimmed = String(value || "Player").trim() || "Player";
+  return trimmed.slice(0, REMOTE_NAME_LIMIT);
+}
+
+function sanitizeDisplayName(value) {
+  return String(value || "")
+    .replace(/[^\w .-]/g, "")
+    .trim()
+    .slice(0, 24);
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase().slice(0, 120);
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isStrongEnoughPassword(value) {
+  return typeof value === "string" && value.length >= 8 && value.length <= 128;
+}
+
+function normalizeRoomCode(value) {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z2-9]/g, "")
+    .slice(0, 5);
+}
+
+function describeGoogleAuthError(err) {
+  const code = String(err?.code || "");
+  if (code === "auth/popup-closed-by-user") return "Google sign-in was closed before it finished.";
+  if (code === "auth/popup-blocked") return "Google sign-in popup was blocked. Trying redirect instead can help.";
+  if (code === "auth/cancelled-popup-request") return "Another sign-in request is already in progress.";
+  if (code === "auth/unauthorized-domain") {
+    return "This site is not authorized for Google sign-in in Firebase yet.";
+  }
+  if (code === "auth/operation-not-supported-in-this-environment") {
+    return "This browser blocked popup sign-in. Redirect sign-in should work instead.";
+  }
+  if (code === "auth/network-request-failed") return "Google sign-in failed because of a network error.";
+  if (code) return `Google sign-in failed (${code}).`;
+  return "Google sign-in failed. Please try again.";
+}
+
+async function startGoogleSignIn(authRef, provider) {
+  provider.setCustomParameters({ prompt: "select_account" });
+  try {
+    authState.textContent = "Opening Google sign-in...";
+    await signInWithPopup(authRef, provider);
+    authModal.classList.add("hidden");
+  } catch (err) {
+    const code = String(err?.code || "");
+    if (
+      code === "auth/popup-blocked" ||
+      code === "auth/operation-not-supported-in-this-environment"
+    ) {
+      try {
+        authState.textContent = "Popup unavailable. Redirecting to Google sign-in...";
+        await signInWithRedirect(authRef, provider);
+        return;
+      } catch (redirectErr) {
+        authState.textContent = describeGoogleAuthError(redirectErr);
+        return;
+      }
+    }
+    authState.textContent = describeGoogleAuthError(err);
+  }
+}
+
+function isCustomMapRun() {
+  return editorEnabled && editorLevel.length > 0 && !mpEnabled;
+}
+
+function isDevAccount() {
+  const email = auth?.currentUser?.email || "";
+  return (
+    location.hostname === "localhost" ||
+    location.hostname === "127.0.0.1" ||
+    DEV_UIDS.has(uid || "") ||
+    DEV_EMAILS.has(email)
+  );
+}
+
+function visibleItems(items) {
+  return items.filter((item) => !item.devOnly || isDevAccount());
+}
+
+function normalizeDifficultyId(value) {
+  return DIFFICULTIES[value] ? value : "medium";
+}
+
+function getSelectedDifficultyId() {
+  return normalizeDifficultyId(selectedDifficultyId);
+}
+
+function getCurrentDifficultyId() {
+  return normalizeDifficultyId(world.sharedDifficulty || getSelectedDifficultyId());
+}
+
+function getDifficultySettings() {
+  return DIFFICULTIES[getCurrentDifficultyId()] || DIFFICULTIES.medium;
+}
+
+function applyDifficultySettings() {
+  const settings = getDifficultySettings();
+  world.spawnEvery = settings.spawnEvery;
+  if (state !== "running") {
+    world.speedScale = 1;
+    world.scroll = settings.baseScroll;
+  }
+}
+
+function resetWorldMotion() {
+  const settings = getDifficultySettings();
+  world.speedScale = 1;
+  world.scroll = settings.baseScroll;
+  world.spawnEvery = settings.spawnEvery;
+}
+
+function computeSharedDistanceWithSettings(elapsedSec, settings) {
+  return settings.baseScroll * (elapsedSec + 0.5 * settings.speedGrowth * elapsedSec * elapsedSec);
+}
+
+function updateAdCopy() {
+  adCopy.textContent = HOUSE_ADS[adIndex % HOUSE_ADS.length];
+}
+
+function rotateAdCopy() {
+  adIndex += 1;
+  updateAdCopy();
+}
+
+function ensureDevItemsUnlocked() {
+  if (!isDevAccount()) return;
+  for (const item of SPRITES.filter((entry) => entry.devOnly)) {
+    if (!profile.ownedSprites.includes(item.id)) profile.ownedSprites.push(item.id);
+  }
+  for (const item of TRAILS.filter((entry) => entry.devOnly)) {
+    if (!profile.ownedTrails.includes(item.id)) profile.ownedTrails.push(item.id);
+  }
+  for (const item of COLORS.filter((entry) => entry.devOnly)) {
+    if (!profile.ownedColors.includes(item.id)) profile.ownedColors.push(item.id);
+  }
+}
+
+function ensureAudioContext() {
+  if (!audioCtx) {
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) return null;
+    audioCtx = new AudioCtor();
+  }
+  return audioCtx;
+}
+
+function playTone(startAt, frequency, duration, gain = 0.02, type = "sine") {
+  const ctxRef = ensureAudioContext();
+  if (!ctxRef) return;
+  const osc = ctxRef.createOscillator();
+  const amp = ctxRef.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(frequency, startAt);
+  amp.gain.setValueAtTime(0.0001, startAt);
+  amp.gain.exponentialRampToValueAtTime(gain, startAt + 0.02);
+  amp.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+  osc.connect(amp);
+  amp.connect(ctxRef.destination);
+  osc.start(startAt);
+  osc.stop(startAt + duration + 0.05);
+}
+
+function scheduleMusicLoop() {
+  const ctxRef = ensureAudioContext();
+  if (!ctxRef || !musicEnabled) return;
+  if (ctxRef.state === "suspended") {
+    void ctxRef.resume();
+  }
+  const now = ctxRef.currentTime;
+  if (musicNextAt < now + 0.05) musicNextAt = now + 0.08;
+  const notes = [220, 246.94, 261.63, 293.66, 329.63, 392];
+  while (musicNextAt < now + 1.6) {
+    const base = notes[Math.floor(Math.random() * notes.length)];
+    playTone(musicNextAt, base, 0.35, 0.018, "triangle");
+    playTone(musicNextAt + 0.18, base * 0.5, 0.45, 0.01, "sine");
+    if (Math.random() > 0.45) {
+      playTone(musicNextAt + 0.08, base * 1.5, 0.18, 0.006, "square");
+    }
+    musicNextAt += 0.45 + Math.random() * 0.12;
+  }
+}
+
+function startMusic() {
+  musicEnabled = true;
+  localStorage.setItem(MUSIC_KEY, "true");
+  musicToggleBtn.textContent = "Music: On";
+  const ctxRef = ensureAudioContext();
+  if (!ctxRef) {
+    musicToggleBtn.textContent = "Music Unsupported";
+    return;
+  }
+  if (musicTimer) clearInterval(musicTimer);
+  musicNextAt = ctxRef.currentTime;
+  scheduleMusicLoop();
+  musicTimer = setInterval(scheduleMusicLoop, 600);
+}
+
+function enableMusicFromGesture() {
+  if (!musicEnabled) return;
+  if (musicTimer) {
+    const ctxRef = ensureAudioContext();
+    if (ctxRef?.state === "suspended") void ctxRef.resume();
+    return;
+  }
+  startMusic();
+}
+
+function stopMusic() {
+  musicEnabled = false;
+  localStorage.setItem(MUSIC_KEY, "false");
+  musicToggleBtn.textContent = "Music: Off";
+  if (musicTimer) {
+    clearInterval(musicTimer);
+    musicTimer = null;
+  }
+}
+
 function loadLocalProfile() {
   try {
     const saved = localStorage.getItem(PROFILE_KEY);
@@ -464,9 +803,11 @@ function persistLocalProfile() {
 async function initSharedRoom(roomRef, { allowStartIfMissing } = {}) {
   try {
     const seed = Math.floor(Math.random() * 1e9) + 1;
+    const difficultyId = getSelectedDifficultyId();
     await runTransaction(roomRef, (current) => {
       const next = { ...(current || {}) };
       if (!next.seed) next.seed = seed;
+      if (!next.difficulty) next.difficulty = difficultyId;
       if (allowStartIfMissing && !next.startAt) {
         next.startAt = rtdbServerTimestamp();
         next.raceId = (Number(current?.raceId || 0) + 1) || 1;
@@ -478,31 +819,33 @@ async function initSharedRoom(roomRef, { allowStartIfMissing } = {}) {
       const data = snap.val();
       if (data.seed) {
         world.sharedSeed = Number(data.seed);
+        world.sharedDifficulty = normalizeDifficultyId(data.difficulty || difficultyId);
+        sharedSpawnCache = [];
+        applyDifficultySettings();
+        difficultySelect.value = world.sharedDifficulty;
         const startAtMs = coerceTimestampMs(data.startAt);
         if (startAtMs) {
           if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
-          world.sharedStartMs = startAtMs;
-          world.raceStartLocalMs = null;
-          world.awaitingRaceStart = false;
-          {
+            world.sharedStartMs = startAtMs;
+            world.raceStartLocalMs = null;
+            world.awaitingRaceStart = false;
             const now = Date.now() + rtdbOffsetMs;
             world.joinTimeSec = Math.max(0, (now - world.sharedStartMs) / 1000);
+            hideOverlay();
+          } else {
+            world.raceStartLocalMs = startAtMs;
+            world.sharedStartMs = startAtMs + RACE_COUNTDOWN_SEC * 1000;
+            world.raceActiveId = 0;
+            world.awaitingRaceStart = true;
+            world.joinTimeSec = 0;
+            prepareRaceStart();
           }
-          hideOverlay();
         } else {
-          world.raceStartLocalMs = startAtMs;
-          world.sharedStartMs = startAtMs + RACE_COUNTDOWN_SEC * 1000;
-          world.raceActiveId = 0;
-          world.awaitingRaceStart = true;
+          world.sharedStartMs = null;
+          world.awaitingRaceStart = false;
           world.joinTimeSec = 0;
-          prepareRaceStart();
+          showOverlay("Waiting", "Waiting for the race to start.");
         }
-      } else {
-        world.sharedStartMs = null;
-        world.awaitingRaceStart = false;
-        world.joinTimeSec = 0;
-        showOverlay("Waiting", "Waiting for the race to start.");
-      }
       }
     }
     world.spawnIndex = 0;
@@ -518,17 +861,31 @@ async function loadRoomState(roomRef) {
       const data = snap.val();
       if (data.seed) {
         world.sharedSeed = Number(data.seed);
+        world.sharedDifficulty = normalizeDifficultyId(data.difficulty || getSelectedDifficultyId());
+        sharedSpawnCache = [];
+        applyDifficultySettings();
+        difficultySelect.value = world.sharedDifficulty;
         const startAtMs = coerceTimestampMs(data.startAt);
-        if (startAtMs && mpRoomId === MULTI_PUBLIC_ROOM_ID) {
-          world.sharedStartMs = startAtMs;
-          world.awaitingRaceStart = false;
-          if (!world.publicStartOverrideMs) {
-            const now = Date.now() + rtdbOffsetMs;
-            world.joinTimeSec = Math.max(0, (now - world.sharedStartMs) / 1000);
+        if (startAtMs) {
+          if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+            world.sharedStartMs = startAtMs;
+            world.raceStartLocalMs = null;
+            world.awaitingRaceStart = false;
+            if (!world.publicStartOverrideMs) {
+              const now = Date.now() + rtdbOffsetMs;
+              world.joinTimeSec = Math.max(0, (now - world.sharedStartMs) / 1000);
+            }
+            hideOverlay();
+          } else {
+            world.raceStartLocalMs = startAtMs;
+            world.sharedStartMs = startAtMs + RACE_COUNTDOWN_SEC * 1000;
+            world.awaitingRaceStart = true;
+            world.joinTimeSec = 0;
+            prepareRaceStart();
           }
-          hideOverlay();
         } else {
           world.sharedStartMs = null;
+          world.raceStartLocalMs = null;
           world.awaitingRaceStart = false;
           world.joinTimeSec = 0;
           showOverlay("Waiting", "Waiting for the race to start.");
@@ -543,13 +900,20 @@ async function loadRoomState(roomRef) {
 
 async function resetRoomSeed(roomRef) {
   try {
+    const difficultyId = getSelectedDifficultyId();
+    const newSeed = Math.floor(Math.random() * 1e9) + 1;
     await runTransaction(roomRef, (current) => {
       const next = { ...(current || {}) };
-      if (!next.seed) next.seed = Math.floor(Math.random() * 1e9) + 1;
+      next.seed = newSeed; // Always generate a fresh seed for each race
+      next.difficulty = difficultyId;
       next.startAt = rtdbServerTimestamp();
       next.raceId = (Number(current?.raceId || 0) + 1) || 1;
       return next;
     });
+    world.sharedDifficulty = difficultyId;
+    sharedSpawnCache = [];
+    applyDifficultySettings();
+    difficultySelect.value = world.sharedDifficulty;
     const now = Date.now() + rtdbOffsetMs;
     world.raceId += 1;
     world.raceStartLocalMs = now;
@@ -571,8 +935,8 @@ function subscribeLeaderboard() {
       const data = docSnap.data();
       const li = document.createElement("li");
       const name = data.name || "Player";
-      const score = Number(data.bestScore || 0);
-      li.textContent = `${name}: ${score}`;
+      const displayScore = Number(data.bestScore || 0);
+      li.textContent = `${name}: ${displayScore}`;
       leaderboardList.appendChild(li);
     });
   });
@@ -601,74 +965,174 @@ function setRoomUiState({ inRoom, owner, code }) {
   roomStartBtn.disabled = !inRoom || !owner;
   roomLeaveBtn.disabled = !inRoom;
   roomCodeDisplay.textContent = code ? `Room code: ${code}` : "";
+  const difficultyName = DIFFICULTIES[getCurrentDifficultyId()].name;
   if (inRoom) {
-    roomStatus.textContent = owner
-      ? "You are the room owner. Click Start Race to begin."
-      : "Waiting for the owner to start the race.";
+    const ownerMsg = `You are the room owner. ${difficultyName} mode is armed for the next start.`;
+    const guestMsg = `Waiting for the owner to start the ${difficultyName} race.`;
+    roomStatus.textContent = owner ? ownerMsg : guestMsg;
+    mpStatus.textContent = owner
+      ? `Room ${code}: you are owner`
+      : `Room ${code}: waiting for start`;
   } else {
     roomStatus.textContent = "Create or join a room to race together.";
   }
 }
 
 async function createRoom() {
-  if (!rtdb || !uid) return;
-  const code = generateRoomCode();
-  const roomRef = dbRef(rtdb, `rooms/${code}`);
-  const ownerId = getMultiplayerId();
-  const seed = Math.floor(Math.random() * 1e9) + 1;
-  await dbUpdate(roomRef, {
-    ownerId,
-    createdAt: rtdbServerTimestamp(),
-    seed,
-    startAt: null,
-    raceId: 0,
-  });
-  startMultiplayer(code, { autoStart: false, ownerId });
-  setRoomUiState({ inRoom: true, owner: true, code });
+  if (!rtdb || !uid) {
+    roomStatus.textContent = "You must be signed in to create a room.";
+    return;
+  }
+
+  roomCreateBtn.disabled = true;
+  roomStatus.textContent = "Creating room...";
+
+  try {
+    const code = generateRoomCode();
+    const roomRef = dbRef(rtdb, `rooms/${code}`);
+    const ownerId = getMultiplayerId();
+    const seed = Math.floor(Math.random() * 1e9) + 1;
+
+    console.log("Creating room:", code);
+
+    // ✅ Create FULL room structure
+    await dbSet(roomRef, {
+      ownerId,
+      createdAt: rtdbServerTimestamp(),
+      seed,
+      difficulty: getSelectedDifficultyId(),
+      startAt: null,
+      raceId: 0,
+      players: {
+        [ownerId]: {
+          joinedAt: Date.now(),
+          lastSeen: Date.now()
+      }
+    }
+    });
+
+    console.log("Room created:", code);
+
+    startMultiplayer(code, { autoStart: false, ownerId });
+    setRoomUiState({ inRoom: true, owner: true, code });
+
+    roomModal.classList.add("hidden");
+    stopRoomList();
+
+  } catch (e) {
+    console.error("CREATE ROOM ERROR:", e);
+    roomStatus.textContent = "Failed to create room. Check console.";
+  } finally {
+    roomCreateBtn.disabled = false;
+  }
 }
 
 async function joinRoom() {
-  if (!rtdb || !uid) return;
-  const code =
-    roomCodeInput.value.trim().toUpperCase() || roomListSelect.value.trim().toUpperCase();
+  if (!rtdb || !uid) {
+    roomStatus.textContent = "You must be signed in to join a room.";
+    return;
+  }
+
+  const manualCode = normalizeRoomCode(roomCodeInput.value);
+  const listedCode = normalizeRoomCode(roomListSelect.value);
+  const code = manualCode || listedCode;
+
+  roomCodeInput.value = manualCode;
+
   if (!code) {
-    roomStatus.textContent = "Enter a room code.";
+    roomStatus.textContent = "Enter a valid 5-character room code or pick one.";
     return;
   }
-  const roomRef = dbRef(rtdb, `rooms/${code}`);
-  const snap = await dbGet(roomRef);
-  if (!snap.exists()) {
-    roomStatus.textContent = "Room not found.";
+
+  if (!ROOM_CODE_RE.test(code)) {
+    roomStatus.textContent = "Room codes must be exactly 5 letters or numbers.";
     return;
   }
-  const data = snap.val() || {};
-  startMultiplayer(code, { autoStart: false, ownerId: data.ownerId || null });
-  setRoomUiState({ inRoom: true, owner: false, code });
+
+  roomJoinBtn.disabled = true;
+  roomStatus.textContent = "Joining room...";
+
+  try {
+    const roomRef = dbRef(rtdb, `rooms/${code}`);
+    const snap = await dbGet(roomRef);
+
+    if (!snap.exists()) {
+      roomStatus.textContent = "Room not found. Check the code.";
+      return;
+    }
+
+    const data = snap.val() || {};
+    const playerId = getMultiplayerId();
+    const isOwner = data.ownerId === playerId;
+
+    console.log("Joining room:", code);
+
+    // ✅ Add player to room
+    await dbUpdate(dbRef(rtdb, `rooms/${code}/players`), {
+      [getMultiplayerId()]: {
+        joinedAt: Date.now(),
+        lastSeen: Date.now()
+      }
+    });
+
+    console.log("Joined room:", code);
+
+    startMultiplayer(code, { autoStart: false, ownerId: data.ownerId || null });
+    setRoomUiState({ inRoom: true, owner: isOwner, code });
+
+    roomModal.classList.add("hidden");
+    stopRoomList();
+
+  } catch (e) {
+    console.error("JOIN ROOM ERROR:", e);
+    roomStatus.textContent = "Failed to join room. Check console.";
+  } finally {
+    roomJoinBtn.disabled = false;
+  }
 }
 
 function leaveRoom() {
   stopMultiplayer();
   setRoomUiState({ inRoom: false, owner: false, code: "" });
+  hardReset();
 }
 
 function startRoomList() {
   if (!rtdb || roomListUnsub) return;
+
   const roomsRef = dbRef(rtdb, "rooms");
+
   roomListUnsub = onValue(roomsRef, (snap) => {
     roomListSelect.innerHTML = "";
+
     const placeholder = document.createElement("option");
     placeholder.value = "";
     placeholder.textContent = "Select a room";
     roomListSelect.appendChild(placeholder);
 
     if (!snap.exists()) return;
+
     const rooms = snap.val() || {};
+    const now = Date.now();
+
     for (const [code, data] of Object.entries(rooms)) {
       if (!code || code === MULTI_PUBLIC_ROOM_ID) continue;
-      const count = data.players ? Object.keys(data.players).length : 0;
+
+      const players = data.players || {};
+
+      const activePlayers = Object.values(players).filter((p) => {
+        const lastSeen = coerceTimestampMs(p?.lastSeen);
+        return lastSeen && now - lastSeen <= MULTI_STALE_MS;
+      });
+
+      const count = activePlayers.length;
+      const difficultyName =
+        DIFFICULTIES[normalizeDifficultyId(data.difficulty)].name;
+
       const option = document.createElement("option");
       option.value = code;
-      option.textContent = `${code} (${count} players)`;
+      option.textContent = `${code} — ${count} player${count !== 1 ? "s" : ""} (${difficultyName})`;
+
       roomListSelect.appendChild(option);
     }
   });
@@ -678,6 +1142,93 @@ function stopRoomList() {
   if (roomListUnsub) {
     roomListUnsub();
     roomListUnsub = null;
+  }
+}
+
+function formatPreviewMessage(item, owned, equipped) {
+  if (!item) return "Preview unavailable.";
+  if (equipped === item.id) return `${item.name} is currently equipped.`;
+  if (owned) return `${item.name} is owned and ready to equip.`;
+  return `${item.name} costs ${item.cost} points.`;
+}
+
+function updateShopPreview() {
+  const sprite = getItem(SPRITES, spriteSelect.value) || getItem(SPRITES, profile.equippedSprite) || SPRITES[0];
+  const trail = getItem(TRAILS, trailSelect.value) || getItem(TRAILS, profile.equippedTrail) || TRAILS[0];
+  const color = getItem(COLORS, colorSelect.value) || getItem(COLORS, profile.equippedColor) || COLORS[0];
+  let selectedType = "sprite";
+  if (document.activeElement === trailSelect) selectedType = "trail";
+  if (document.activeElement === colorSelect) selectedType = "color";
+  const context =
+    selectedType === "trail"
+      ? { item: trail, owned: profile.ownedTrails.includes(trail.id), equipped: profile.equippedTrail }
+      : selectedType === "color"
+        ? { item: color, owned: profile.ownedColors.includes(color.id), equipped: profile.equippedColor }
+        : { item: sprite, owned: profile.ownedSprites.includes(sprite.id), equipped: profile.equippedSprite };
+  shopPreviewTitle.textContent = `${sprite.name} / ${trail.name} / ${color.name}`;
+  shopPreviewText.textContent = `${formatPreviewMessage(
+    context.item,
+    context.owned,
+    context.equipped
+  )} Loadout preview uses ${color.name.toLowerCase()} colors with the ${trail.name.toLowerCase()} trail.`;
+}
+
+function updateOnlineCount() {
+  if (!rtdb || onlineCountUnsub) return;
+  // Watch the dedicated presence/ node which all players (solo + mp) write to.
+  onlineCountUnsub = onValue(dbRef(rtdb, "presence"), (snap) => {
+    const now = Date.now() + rtdbOffsetMs;
+    const uniquePlayers = new Set();
+    if (snap.exists()) {
+      const entries = snap.val() || {};
+      for (const [id, data] of Object.entries(entries)) {
+        const lastSeen = coerceTimestampMs(data?.lastSeen);
+        if (lastSeen && now - lastSeen <= MULTI_STALE_MS) {
+          uniquePlayers.add(id);
+        }
+      }
+    }
+    onlineCountEl.textContent = String(uniquePlayers.size);
+  });
+}
+
+// Write a heartbeat to presence/{id} every 4 seconds so this player
+// shows up in the online count even during solo play.
+function startPresence() {
+  if (!rtdb) return;
+  const id = getMultiplayerId();
+  presenceRef = dbRef(rtdb, `presence/${id}`);
+
+  function ping() {
+    if (!presenceRef) return;
+    void dbUpdate(presenceRef, { lastSeen: rtdbServerTimestamp() });
+  }
+
+  ping();
+  if (presencePingTimer) clearInterval(presencePingTimer);
+  presencePingTimer = setInterval(ping, 4000);
+
+  // Remove this player's presence entry when they close the tab.
+  onDisconnect(presenceRef).remove();
+}
+
+function stopPresence() {
+  if (presencePingTimer) {
+    clearInterval(presencePingTimer);
+    presencePingTimer = null;
+  }
+  if (presenceRef) {
+    void dbRemove(presenceRef);
+    presenceRef = null;
+  }
+}
+
+async function toggleFullscreen() {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await gameWrap.requestFullscreen();
+  } catch {
+    mpStatus.textContent = "Full screen is not available here";
   }
 }
 
@@ -874,6 +1425,7 @@ async function savePlayerData() {
 }
 
 function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
+  if (mpEnabled) stopMultiplayer();
   mpEnabled = true;
   mpPlayerId = getMultiplayerId();
   mpRoomId = roomId;
@@ -882,16 +1434,19 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
   mpPlayerRef = dbRef(rtdb, `rooms/${roomId}/players/${mpPlayerId}`);
   mpStatus.textContent = "Multiplayer: Connecting...";
   world.publicStartOverrideMs = null;
+  world.sharedDifficulty = autoStart && roomId === MULTI_PUBLIC_ROOM_ID ? getSelectedDifficultyId() : null;
   world.joinTimeSec = 0;
   world.obstacles = [];
   world.pickups = [];
+  sharedSpawnCache = [];
   world.spawnIndex = 0;
   world.spawnTimer = 0;
-  world.speedScale = 1;
-  world.scroll = 260;
-  world.speedScale = 1;
-  world.scroll = 260;
+  resetWorldMotion();
+  world.raceId = 0;
+  world.raceActiveId = 0;
+  mpSendCooldown = 0;
   state = "idle";
+  currentRunCountsForProgress = true;
   resetPlayerToCenter("Waiting for the race to start.");
 
   if (autoStart) {
@@ -907,8 +1462,12 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
     const seed = Number(data.seed || 0);
     const startAtMs = coerceTimestampMs(data.startAt);
     const raceId = Number(data.raceId || 0);
+    world.sharedDifficulty = normalizeDifficultyId(data.difficulty || world.sharedDifficulty || getSelectedDifficultyId());
+    applyDifficultySettings();
+    difficultySelect.value = world.sharedDifficulty;
     if (seed && seed !== world.sharedSeed) {
       world.sharedSeed = seed;
+      sharedSpawnCache = [];
       world.spawnIndex = 0;
       world.spawnTimer = 0;
       world.obstacles = [];
@@ -918,18 +1477,18 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
     if (raceId && raceId !== world.raceId) {
       world.raceId = raceId;
       world.raceActiveId = 0;
-        if (startAtMs) {
-          if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
-            world.sharedStartMs = startAtMs;
-            world.raceStartLocalMs = null;
-            if (!world.publicStartOverrideMs) {
-              const now = Date.now() + rtdbOffsetMs;
-              world.joinTimeSec = Math.max(0, (now - world.sharedStartMs) / 1000);
-            }
-          } else {
-            world.raceStartLocalMs = startAtMs;
-            world.sharedStartMs = startAtMs + RACE_COUNTDOWN_SEC * 1000;
-            world.joinTimeSec = 0;
+      if (startAtMs) {
+        if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+          world.sharedStartMs = startAtMs;
+          world.raceStartLocalMs = null;
+          if (!world.publicStartOverrideMs) {
+            const now = Date.now() + rtdbOffsetMs;
+            world.joinTimeSec = Math.max(0, (now - world.sharedStartMs) / 1000);
+          }
+        } else {
+          world.raceStartLocalMs = startAtMs;
+          world.sharedStartMs = startAtMs + RACE_COUNTDOWN_SEC * 1000;
+          world.joinTimeSec = 0;
         }
       } else {
         const now = Date.now() + rtdbOffsetMs;
@@ -950,8 +1509,7 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
       world.center = H * 0.5;
       world.time = 0;
       localDistance = 0;
-      world.speedScale = 1;
-      world.scroll = 260;
+      resetWorldMotion();
       if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
         world.awaitingRaceStart = false;
         hideOverlay();
@@ -981,8 +1539,7 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
       world.center = H * 0.5;
       world.time = 0;
       localDistance = 0;
-      world.speedScale = 1;
-      world.scroll = 260;
+      resetWorldMotion();
       if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
         world.awaitingRaceStart = false;
         hideOverlay();
@@ -991,11 +1548,18 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
         world.awaitingRaceStart = shouldCountdown;
         if (shouldCountdown) prepareRaceStart();
       }
-    } else if (!startAtMs && !world.raceStartLocalMs) {
+    } else if (!startAtMs && !world.raceStartLocalMs && !world.awaitingRaceStart) {
+      // Only reset if we have no local race start time already in progress.
+      // This guards against the Firebase server timestamp sentinel ({".sv":"timestamp"})
+      // briefly appearing as 0 before the real value arrives, which would
+      // otherwise clobber the countdown the owner just started.
       world.sharedStartMs = null;
       world.raceStartLocalMs = null;
       world.awaitingRaceStart = false;
       world.joinTimeSec = 0;
+      world.obstacles = [];
+      world.pickups = [];
+      score = 0;
       state = "idle";
       resetPlayerToCenter("Waiting for the race to start.");
     }
@@ -1022,8 +1586,7 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
     mpPlayers = next;
     // Sync remote trails with latest positions.
     for (const [id, data] of mpPlayers.entries()) {
-      const offset = getPlayerOffset(id);
-      const x = player.x + offset;
+      const x = getRemoteRenderX(data);
       const y = data.y || 0;
       const trail = mpTrails.get(id) || [];
       trail.push({ x, y, life: 0.8 });
@@ -1034,9 +1597,12 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
     }
     const count = mpPlayers.size + 1;
     if (mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
-      mpStatus.textContent = `Room ${mpRoomId}: ${count} players`;
+      const isOwner = mpOwnerId === getMultiplayerId();
+      mpStatus.textContent = isOwner
+        ? `Room ${mpRoomId}: owner (${count} player${count !== 1 ? "s" : ""})`
+        : `Room ${mpRoomId}: ${count} player${count !== 1 ? "s" : ""}`;
     } else {
-      mpStatus.textContent = `Multiplayer: ${count} players`;
+      mpStatus.textContent = `Multiplayer: ${count} player${count !== 1 ? "s" : ""}`;
     }
   });
 
@@ -1053,6 +1619,7 @@ function stopMultiplayer() {
   mpRoomRef = null;
   mpRoomId = null;
   mpOwnerId = null;
+  mpSendCooldown = 0;
   if (mpPlayersUnsub) {
     mpPlayersUnsub();
     mpPlayersUnsub = null;
@@ -1066,11 +1633,18 @@ function stopMultiplayer() {
     void dbRemove(dbRef(rtdb, `rooms/${roomId}/players/${mpPlayerId}`));
   }
   world.sharedSeed = null;
+  world.sharedDifficulty = null;
   world.sharedStartMs = null;
   world.publicStartOverrideMs = null;
   world.joinTimeSec = 0;
   world.spawnIndex = 0;
   world.awaitingRaceStart = false;
+  sharedSpawnCache = [];
+  applyDifficultySettings();
+  difficultySelect.value = getSelectedDifficultyId();
+  currentRunCountsForProgress = true;
+  state = "idle";
+  score = 0;
 }
 
 function queueSave() {
@@ -1089,7 +1663,7 @@ function getItem(items, id) {
 function getShopContext(type) {
   if (type === "sprite") {
     return {
-      items: SPRITES,
+      items: visibleItems(SPRITES),
       owned: profile.ownedSprites,
       equipped: profile.equippedSprite,
       select: spriteSelect,
@@ -1101,7 +1675,7 @@ function getShopContext(type) {
   }
   if (type === "trail") {
     return {
-      items: TRAILS,
+      items: visibleItems(TRAILS),
       owned: profile.ownedTrails,
       equipped: profile.equippedTrail,
       select: trailSelect,
@@ -1112,7 +1686,7 @@ function getShopContext(type) {
     };
   }
   return {
-    items: COLORS,
+    items: visibleItems(COLORS),
     owned: profile.ownedColors,
     equipped: profile.equippedColor,
     select: colorSelect,
@@ -1125,6 +1699,7 @@ function getShopContext(type) {
 
 function describeItem(item, owned) {
   if (!item) return "Unknown";
+  if (item.devOnly) return owned ? `${item.name} (dev)` : `${item.name} (dev-only)`;
   return owned ? `${item.name} (owned)` : `${item.name} (${item.cost} pts)`;
 }
 
@@ -1169,15 +1744,23 @@ function updateActionButton(type) {
 }
 
 function refreshShopUi() {
-  populateSelect(spriteSelect, SPRITES, profile.ownedSprites);
-  populateSelect(trailSelect, TRAILS, profile.ownedTrails);
-  populateSelect(colorSelect, COLORS, profile.ownedColors);
+  ensureDevItemsUnlocked();
+  const visibleSprites = visibleItems(SPRITES);
+  const visibleTrails = visibleItems(TRAILS);
+  const visibleColors = visibleItems(COLORS);
+  if (!visibleSprites.some((item) => item.id === profile.equippedSprite)) profile.equippedSprite = "dart";
+  if (!visibleTrails.some((item) => item.id === profile.equippedTrail)) profile.equippedTrail = "solid";
+  if (!visibleColors.some((item) => item.id === profile.equippedColor)) profile.equippedColor = "amber";
+  populateSelect(spriteSelect, visibleSprites, profile.ownedSprites);
+  populateSelect(trailSelect, visibleTrails, profile.ownedTrails);
+  populateSelect(colorSelect, visibleColors, profile.ownedColors);
   if (!profile.ownedSprites.includes(spriteSelect.value)) spriteSelect.value = profile.equippedSprite;
   if (!profile.ownedTrails.includes(trailSelect.value)) trailSelect.value = profile.equippedTrail;
   if (!profile.ownedColors.includes(colorSelect.value)) colorSelect.value = profile.equippedColor;
   updateActionButton("sprite");
   updateActionButton("trail");
   updateActionButton("color");
+  updateShopPreview();
 }
 
 function shopAction(type) {
@@ -1185,6 +1768,7 @@ function shopAction(type) {
   const item = getItem(items, select.value);
 
   if (!item) return;
+  if (item.devOnly && !isDevAccount()) return;
 
   if (!owned.includes(item.id)) {
     if (profile.coins < item.cost) {
@@ -1208,9 +1792,18 @@ function shopAction(type) {
   queueSave();
 }
 
-spriteSelect.addEventListener("change", () => updateActionButton("sprite"));
-trailSelect.addEventListener("change", () => updateActionButton("trail"));
-colorSelect.addEventListener("change", () => updateActionButton("color"));
+spriteSelect.addEventListener("change", () => {
+  updateActionButton("sprite");
+  updateShopPreview();
+});
+trailSelect.addEventListener("change", () => {
+  updateActionButton("trail");
+  updateShopPreview();
+});
+colorSelect.addEventListener("change", () => {
+  updateActionButton("color");
+  updateShopPreview();
+});
 spriteActionBtn.addEventListener("click", () => shopAction("sprite"));
 trailActionBtn.addEventListener("click", () => shopAction("trail"));
 colorActionBtn.addEventListener("click", () => shopAction("color"));
@@ -1250,6 +1843,10 @@ roomJoinBtn.addEventListener("click", () => {
   void joinRoom();
 });
 
+roomCodeInput.addEventListener("input", () => {
+  roomCodeInput.value = normalizeRoomCode(roomCodeInput.value);
+});
+
 roomStartBtn.addEventListener("click", () => {
   if (!mpRoomRef || !mpOwnerId) return;
   if (mpOwnerId !== getMultiplayerId()) {
@@ -1263,11 +1860,22 @@ roomLeaveBtn.addEventListener("click", () => {
   leaveRoom();
 });
 
+fullscreenBtn.addEventListener("click", () => {
+  void toggleFullscreen();
+});
+
+document.addEventListener("fullscreenchange", () => {
+  const isGameFullscreen = document.fullscreenElement === gameWrap;
+  gameWrap.classList.toggle("is-fullscreen", isGameFullscreen);
+  fullscreenBtn.textContent = isGameFullscreen ? "Exit Full Screen" : "Full Screen";
+});
+
 function hardReset() {
   state = "idle";
   score = 0;
-  world.speedScale = 1;
-  world.scroll = 260;
+  localClears = 0;
+  localDistance = 0;
+  applyDifficultySettings();
   world.obstacles = [];
   world.pickups = [];
   world.spawnTimer = 0;
@@ -1277,6 +1885,8 @@ function hardReset() {
   trailPoints.length = 0;
   player.y = H * 0.5;
   player.vy = 0;
+  hold = false;
+  currentRunCountsForProgress = true;
   showOverlay("Press Space To Start", "Avoid randomized hazards and earn points to buy styles.");
 }
 
@@ -1284,6 +1894,7 @@ function startGame() {
   state = "running";
   score = 0;
   localClears = 0;
+  currentRunCountsForProgress = !isCustomMapRun();
   const isPublicLive =
     mpEnabled &&
     mpRoomId === MULTI_PUBLIC_ROOM_ID &&
@@ -1294,8 +1905,7 @@ function startGame() {
     world.obstacles.length = 0;
     world.pickups.length = 0;
     world.spawnTimer = 0;
-    world.speedScale = 1;
-    world.scroll = 260;
+    resetWorldMotion();
     world.center = H * 0.5;
     world.time = 0;
     world.spawnIndex = 0;
@@ -1325,8 +1935,7 @@ function prepareRaceStart() {
   world.center = H * 0.5;
   world.time = 0;
   world.spawnIndex = 0;
-  world.speedScale = 1;
-  world.scroll = 260;
+  resetWorldMotion();
   world.raceActiveId = 0;
   world.joinTimeSec = 0;
   trailPoints.length = 0;
@@ -1336,8 +1945,7 @@ function prepareRaceStart() {
 }
 
 function computeSharedDistance(elapsedSec) {
-  // speedScale = 1 + 0.064 * t, scroll = 260 * speedScale
-  return 260 * (elapsedSec + 0.032 * elapsedSec * elapsedSec);
+  return computeSharedDistanceWithSettings(elapsedSec, getDifficultySettings());
 }
 
 function resetPlayerToCenter(message) {
@@ -1348,6 +1956,13 @@ function resetPlayerToCenter(message) {
 }
 
 function applyRunResult(runScore) {
+  if (!currentRunCountsForProgress) {
+    profile.lastScore = runScore;
+    profile.totalRuns += 1;
+    profile.updatedAt = Date.now();
+    persistLocalProfile();
+    return;
+  }
   profile.lastScore = runScore;
   profile.totalRuns += 1;
   profile.totalScore += runScore;
@@ -1368,7 +1983,7 @@ function updateLeaderboard() {
   void setDoc(
     doc(db, "leaderboard", uid),
     {
-      name: auth?.currentUser?.displayName || auth?.currentUser?.email || "Player",
+      name: sanitizePlayerName(auth?.currentUser?.displayName || auth?.currentUser?.email || "Player"),
       bestScore: profile.bestScore,
       updatedAt: serverTimestamp(),
     },
@@ -1380,14 +1995,14 @@ function lose() {
   state = "dead";
   const rounded = Math.floor(score);
   applyRunResult(rounded);
-  shopMsg.textContent = `Run ended: +${rounded} points.`;
-  queueSave();
-  world.speedScale = 1;
-  world.scroll = 260;
-  if (mpEnabled && mpRoomRef && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
-    // Restart race at the beginning for everyone in the room.
-    void resetRoomSeed(mpRoomRef);
-  } else if (mpEnabled && mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+  if (currentRunCountsForProgress) {
+    shopMsg.textContent = `Run ended: +${rounded} points.`;
+    queueSave();
+  } else {
+    shopMsg.textContent = "Custom map run ended. No points were awarded.";
+  }
+  resetWorldMotion();
+  if (mpEnabled && mpRoomId === MULTI_PUBLIC_ROOM_ID) {
     const now = Date.now() + rtdbOffsetMs;
     world.publicStartOverrideMs = now;
     world.sharedStartMs = world.sharedStartMs || now;
@@ -1399,6 +2014,14 @@ function lose() {
     world.center = H * 0.5;
     world.time = 0;
     localDistance = 0;
+  }
+  if (mpEnabled && mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
+    showOverlay("Crashed", `Score ${rounded}. Wait for the room owner to start the next race.`);
+    return;
+  }
+  if (mpEnabled && mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+    showOverlay("Crashed", `Score ${rounded}. Press Space or tap to re-enter the race.`);
+    return;
   }
   showOverlay("Crashed", `Score ${rounded}. Press Space or click to restart.`);
 }
@@ -1423,61 +2046,57 @@ function randWith(rng, min, max) {
   return min + rng() * (max - min);
 }
 
-function spawnObstacle(rng = Math.random) {
-  world.center += randWith(rng, -170, 170);
-  world.center = clamp(world.center, 90, H - 90);
-
+function buildSpawnPattern(rng, previousCenter) {
+  const settings = getDifficultySettings();
+  const gapScale = settings.gapScale;
+  const center = clamp(previousCenter + randWith(rng, -settings.centerJitter, settings.centerJitter), 90, H - 90);
   const roll = rng();
+  let obstacle;
   if (roll < 0.38) {
-    world.obstacles.push({
+    obstacle = {
       kind: "gate",
-      x: W + 70,
       w: randWith(rng, 52, 74),
-      center: world.center,
-      gap: randWith(rng, 125, 170),
+      center,
+      gap: randWith(rng, 125, 170) * gapScale,
       scored: false,
-    });
+    };
   } else if (roll < 0.68) {
-    world.obstacles.push({
+    obstacle = {
       kind: "movingGate",
-      x: W + 70,
       w: randWith(rng, 54, 78),
-      baseCenter: world.center,
+      baseCenter: center,
       amp: randWith(rng, 22, 65),
       freq: randWith(rng, 1.2, 2.5),
       phase: randWith(rng, 0, Math.PI * 2),
-      gap: randWith(rng, 120, 165),
+      gap: randWith(rng, 120, 165) * gapScale,
       scored: false,
-    });
+    };
   } else if (roll < 0.86) {
-    world.obstacles.push({
+    obstacle = {
       kind: "pulseGate",
-      x: W + 70,
       w: randWith(rng, 56, 82),
-      center: world.center,
-      baseGap: randWith(rng, 130, 180),
+      center,
+      baseGap: randWith(rng, 130, 180) * gapScale,
       pulse: randWith(rng, 12, 35),
       freq: randWith(rng, 1.8, 3.2),
       phase: randWith(rng, 0, Math.PI * 2),
       scored: false,
-    });
+    };
   } else if (roll < 0.94) {
-    const centerA = world.center;
+    const centerA = center;
     const centerB = clamp(centerA + randWith(rng, -120, 120), 90, H - 90);
-    world.obstacles.push({
+    obstacle = {
       kind: "corridor",
-      x: W + 70,
       w: randWith(rng, 140, 220),
       centerA,
       centerB,
-      gap: randWith(rng, 115, 150),
+      gap: randWith(rng, 115, 150) * gapScale,
       split: randWith(rng, 0.45, 0.55),
       scored: false,
-    });
+    };
   } else {
-    world.obstacles.push({
+    obstacle = {
       kind: "spinner",
-      x: W + 70,
       radius: randWith(rng, 10, 14),
       armLen: randWith(rng, 40, 58),
       angle: randWith(rng, 0, Math.PI * 2),
@@ -1488,107 +2107,74 @@ function spawnObstacle(rng = Math.random) {
       swayFreq: randWith(rng, 1.1, 2.2),
       phase: randWith(rng, 0, Math.PI * 2),
       scored: false,
-    });
+    };
   }
 
-  if (rng() < 0.55) {
+  const pickup =
+    rng() < settings.pickupBias
+      ? {
+          y: clamp(center + randWith(rng, -60, 60), 36, H - 36),
+          r: 9,
+          value: Math.floor(randWith(rng, 12, 32)),
+        }
+      : null;
+
+  return {
+    centerAfter: center,
+    obstacle,
+    pickup,
+  };
+}
+
+function spawnObstacle(rng = Math.random) {
+  const generated = buildSpawnPattern(rng, world.center);
+  world.center = generated.centerAfter;
+  if (generated.obstacle) {
+    world.obstacles.push({
+      ...generated.obstacle,
+      x: OBSTACLE_SPAWN_X,
+    });
+  }
+  if (generated.pickup) {
     world.pickups.push({
-      x: W + 95,
-      y: clamp(world.center + randWith(rng, -60, 60), 36, H - 36),
-      r: 9,
-      value: Math.floor(randWith(rng, 12, 32)),
+      ...generated.pickup,
+      x: PICKUP_SPAWN_X,
     });
   }
 }
 
 function spawnSharedObstacle(index) {
   if (!world.sharedSeed) return;
-  const rng = makeSeededRng((world.sharedSeed ^ (index * 0x9e3779b9)) >>> 0);
-  const spawnT = index * world.spawnEvery;
-  const center = clamp(90 + rng() * (H - 180), 90, H - 90);
-  const roll = rng();
-  if (roll < 0.38) {
-    world.obstacles.push({
-      kind: "gate",
-      x: W + 70,
-      spawnX: W + 70,
-      spawnT,
-      w: randWith(rng, 52, 74),
-      center,
-      gap: randWith(rng, 125, 170),
-      scored: false,
-    });
-  } else if (roll < 0.68) {
-    world.obstacles.push({
-      kind: "movingGate",
-      x: W + 70,
-      spawnX: W + 70,
-      spawnT,
-      w: randWith(rng, 54, 78),
-      baseCenter: center,
-      amp: randWith(rng, 22, 65),
-      freq: randWith(rng, 1.2, 2.5),
-      phase: randWith(rng, 0, Math.PI * 2),
-      gap: randWith(rng, 120, 165),
-      scored: false,
-    });
-  } else if (roll < 0.86) {
-    world.obstacles.push({
-      kind: "pulseGate",
-      x: W + 70,
-      spawnX: W + 70,
-      spawnT,
-      w: randWith(rng, 56, 82),
-      center,
-      baseGap: randWith(rng, 130, 180),
-      pulse: randWith(rng, 12, 35),
-      freq: randWith(rng, 1.8, 3.2),
-      phase: randWith(rng, 0, Math.PI * 2),
-      scored: false,
-    });
-  } else if (roll < 0.94) {
-    const centerB = clamp(center + randWith(rng, -120, 120), 90, H - 90);
-    world.obstacles.push({
-      kind: "corridor",
-      x: W + 70,
-      spawnX: W + 70,
-      spawnT,
-      w: randWith(rng, 140, 220),
-      centerA: center,
-      centerB,
-      gap: randWith(rng, 115, 150),
-      split: randWith(rng, 0.45, 0.55),
-      scored: false,
-    });
-  } else {
-    world.obstacles.push({
-      kind: "spinner",
-      x: W + 70,
-      spawnX: W + 70,
-      spawnT,
-      radius: randWith(rng, 10, 14),
-      armLen: randWith(rng, 40, 58),
-      angle: randWith(rng, 0, Math.PI * 2),
-      baseAngle: randWith(rng, 0, Math.PI * 2),
-      spin: (rng() < 0.5 ? -1 : 1) * randWith(rng, 2.1, 3.4),
-      baseY: randWith(rng, 90, H - 90),
-      swayAmp: randWith(rng, 18, 48),
-      swayFreq: randWith(rng, 1.1, 2.2),
-      phase: randWith(rng, 0, Math.PI * 2),
-      scored: false,
+  while (sharedSpawnCache.length <= index) {
+    const spawnIndex = sharedSpawnCache.length;
+    const previousCenter = spawnIndex === 0 ? H * 0.5 : sharedSpawnCache[spawnIndex - 1].centerAfter;
+    const rng = makeSeededRng((world.sharedSeed ^ ((spawnIndex + 1) * 0x9e3779b9)) >>> 0);
+    const generated = buildSpawnPattern(rng, previousCenter);
+    const spawnT = spawnIndex * world.spawnEvery;
+    sharedSpawnCache.push({
+      centerAfter: generated.centerAfter,
+      obstacle: generated.obstacle
+        ? {
+            ...generated.obstacle,
+            x: OBSTACLE_SPAWN_X,
+            spawnX: OBSTACLE_SPAWN_X,
+            spawnT,
+          }
+        : null,
+      pickup: generated.pickup
+        ? {
+            ...generated.pickup,
+            x: PICKUP_SPAWN_X,
+            spawnX: PICKUP_SPAWN_X,
+            spawnT,
+          }
+        : null,
     });
   }
 
-  if (rng() < 0.55) {
-    world.pickups.push({
-      x: W + 95,
-      spawnX: W + 95,
-      spawnT,
-      y: clamp(center + randWith(rng, -60, 60), 36, H - 36),
-      r: 9,
-      value: Math.floor(randWith(rng, 12, 32)),
-    });
-  }
+  const cached = sharedSpawnCache[index];
+  if (cached?.obstacle) world.obstacles.push({ ...cached.obstacle, scored: false });
+  if (cached?.pickup) world.pickups.push({ ...cached.pickup });
 }
 
 function gateState(obstacle, timeSec) {
@@ -1676,7 +2262,7 @@ function update(dt) {
         sprite: profile.equippedSprite,
         trail: profile.equippedTrail,
         color: profile.equippedColor,
-        name: auth?.currentUser?.displayName || "Player",
+        name: sanitizePlayerName(auth?.currentUser?.displayName || auth?.currentUser?.email || "Player"),
         lastSeen: rtdbServerTimestamp(),
       });
     }
@@ -1699,6 +2285,7 @@ function update(dt) {
     }
     world.awaitingRaceStart = false;
     if (world.raceId) world.raceActiveId = world.raceId;
+    state = "idle"; // ensure startGame() transitions cleanly from any prior state
     hideOverlay();
     startGame();
   }
@@ -1708,13 +2295,13 @@ function update(dt) {
       resetPlayerToCenter();
     }
     if (state === "dead") {
-      world.speedScale = 1;
-      world.scroll = 260;
+      resetWorldMotion();
     }
     return;
   }
 
   let timeSec = world.time + dt;
+  const settings = getDifficultySettings();
   const effectiveStart =
     mpRoomId === MULTI_PUBLIC_ROOM_ID && world.publicStartOverrideMs
       ? world.publicStartOverrideMs
@@ -1722,14 +2309,14 @@ function update(dt) {
   if (mpEnabled && effectiveStart) {
     const now = Date.now() + rtdbOffsetMs;
     timeSec = Math.max(0, (now - effectiveStart) / 1000);
-    world.speedScale = 1 + 0.064 * timeSec;
-    world.scroll = 260 * world.speedScale;
+    world.speedScale = 1 + settings.speedGrowth * timeSec;
+    world.scroll = settings.baseScroll * world.speedScale;
     world.time = timeSec;
     localDistance = computeSharedDistance(timeSec);
   } else {
     world.time = timeSec;
-    world.speedScale += dt * 0.064;
-    world.scroll = 260 * world.speedScale;
+    world.speedScale += dt * settings.speedGrowth;
+    world.scroll = settings.baseScroll * world.speedScale;
     localDistance += world.scroll * dt;
   }
 
@@ -1738,10 +2325,10 @@ function update(dt) {
 
   // Move existing trail points with the world so the trail follows behind the player.
   for (const p of trailPoints) p.x -= world.scroll * dt;
-  trailPoints.push({ x: player.x, y: player.y, life: 0.9 });
+  trailPoints.push({ x: player.x, y: player.y, life: 2.4 });
   for (const p of trailPoints) p.life -= dt;
   while (
-    trailPoints.length > 65 ||
+    trailPoints.length > 140 ||
     (trailPoints[0] && (trailPoints[0].life <= 0 || trailPoints[0].x < -30))
   ) {
     trailPoints.shift();
@@ -1764,7 +2351,7 @@ function update(dt) {
       const lastObstacle = world.obstacles[world.obstacles.length - 1];
       if (lastObstacle && lastObstacle.spawnT !== undefined) {
         const distThen = computeSharedDistance(lastObstacle.spawnT);
-        lastObstacle.x = (lastObstacle.spawnX || W + 70) - (distNow - distThen);
+        lastObstacle.x = (lastObstacle.spawnX || OBSTACLE_SPAWN_X) - (distNow - distThen);
         if (obstacleRightEdge(lastObstacle) < player.x - player.r) {
           lastObstacle.scored = true;
         }
@@ -1780,7 +2367,7 @@ function update(dt) {
     if (mpEnabled && effectiveStart && obstacle.spawnT !== undefined) {
       const distNow = computeSharedDistance(world.time);
       const distThen = computeSharedDistance(obstacle.spawnT);
-      obstacle.x = (obstacle.spawnX || W + 70) - (distNow - distThen);
+      obstacle.x = (obstacle.spawnX || OBSTACLE_SPAWN_X) - (distNow - distThen);
     } else {
       obstacle.x -= world.scroll * dt;
     }
@@ -1798,7 +2385,7 @@ function update(dt) {
     if (mpEnabled && effectiveStart && pickup.spawnT !== undefined) {
       const distNow = computeSharedDistance(world.time);
       const distThen = computeSharedDistance(pickup.spawnT);
-      pickup.x = (pickup.spawnX || W + 95) - (distNow - distThen);
+      pickup.x = (pickup.spawnX || PICKUP_SPAWN_X) - (distNow - distThen);
     } else {
       pickup.x -= world.scroll * dt;
     }
@@ -1828,9 +2415,12 @@ function update(dt) {
     }
     if (!obstacle.scored && obstacleRightEdge(obstacle) < player.x - player.r) {
       obstacle.scored = true;
-      score += OBSTACLE_CLEAR_POINTS;
+      const clearPoints = getDifficultySettings().clearPoints;
+      score += clearPoints;
       localClears += 1;
-      shopMsg.textContent = `Obstacle cleared +${OBSTACLE_CLEAR_POINTS} score`;
+      if (currentRunCountsForProgress) {
+        shopMsg.textContent = `Obstacle cleared +${clearPoints} score`;
+      }
     }
   }
 
@@ -1879,7 +2469,9 @@ function update(dt) {
     const pickup = world.pickups[i];
     if (distSq(player.x, player.y, pickup.x, pickup.y) <= (player.r + pickup.r) ** 2) {
       score += pickup.value;
-      shopMsg.textContent = `Coin +${pickup.value} score`;
+      if (currentRunCountsForProgress) {
+        shopMsg.textContent = `Coin +${pickup.value} score`;
+      }
       world.pickups.splice(i, 1);
     }
   }
@@ -1986,9 +2578,10 @@ function drawTrailById(id, color, points) {
       return;
     }
     case "glass": {
+      ctx.save();
       ctx.globalAlpha = 0.6;
       drawTrailPolyline(points, color.trail, 3.6);
-      ctx.globalAlpha = 1;
+      ctx.restore();
       drawTrailPolyline(points, "#ffffff", 1.2);
       return;
     }
@@ -2017,6 +2610,12 @@ function drawTrailById(id, color, points) {
     case "celestial": {
       drawTrailRainbowMulti(points, 6);
       drawTrailSparks(points, "#ffffff", 6, 2.1);
+      return;
+    }
+    case "dev-signal": {
+      drawTrailPolyline(points, "#ffffff", 1.6, [3, 4]);
+      drawTrailPolyline(points, color.glow, 9);
+      drawTrailSparks(points, color.accent, 4, 2.3);
       return;
     }
     default: {
@@ -2239,8 +2838,7 @@ function drawOtherPlayers() {
     const color = getItem(COLORS, data.color) || COLORS[0];
     const spriteId = data.sprite || "dart";
     const angle = data.vy < 0 ? -Math.PI * 0.25 : Math.PI * 0.25;
-    const offset = getPlayerOffset(id);
-    const relX = player.x + offset;
+    const relX = getRemoteRenderX(data);
     const trailId = data.trail || "solid";
     const remoteTrail = mpTrails.get(id) || [];
     if (remoteTrail.length > 1) {
@@ -2254,21 +2852,22 @@ function drawOtherPlayers() {
     ctx.globalAlpha = 1;
     ctx.restore();
 
-    const name = data.name || "Player";
+    const name = sanitizePlayerName(data.name);
     ctx.fillStyle = "rgba(255,255,255,0.75)";
     ctx.font = "12px Segoe UI, Tahoma, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(name, relX, (data.y || 0) - 16);
+    ctx.textAlign = "left"; // reset so other draws are not affected
   }
 }
 
-function getPlayerOffset(id) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) % 1000;
+function getRemoteRenderX(data) {
+  if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+    return clamp(Number(data?.x ?? player.x), -80, W + 80);
   }
-  const lane = (hash % 3) - 1;
-  return lane * 16;
+  const remoteDist = Number(data?.dist || 0);
+  const delta = remoteDist - localDistance;
+  return clamp(player.x + delta, -80, W + 80);
 }
 
 function drawSpriteById(id, color) {
@@ -2596,6 +3195,24 @@ function drawSpriteById(id, color) {
       ctx.fill();
       return;
     }
+    case "dev-core": {
+      ctx.strokeStyle = color.primary;
+      ctx.lineWidth = 2.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, 10, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-12, 0);
+      ctx.lineTo(12, 0);
+      ctx.moveTo(0, -12);
+      ctx.lineTo(0, 12);
+      ctx.stroke();
+      ctx.fillStyle = color.accent;
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
     default: {
       ctx.fillStyle = color.primary;
       ctx.beginPath();
@@ -2646,8 +3263,33 @@ function hideOverlay() {
 }
 
 function onPress() {
-  if (mpEnabled && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
+  enableMusicFromGesture();
+  if (editorEnabled && editorArmed) return;
+  // In private rooms, only the race start countdown triggers startGame — not the player pressing.
+  if (mpEnabled && mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
     hold = true;
+    return;
+  }
+  // In public rooms after dying, pressing restarts as a free-fly spectator from current position.
+  if (mpEnabled && mpRoomId === MULTI_PUBLIC_ROOM_ID && state === "dead") {
+    hold = true;
+    world.publicStartOverrideMs = Date.now() + rtdbOffsetMs;
+    world.joinTimeSec = 0;
+    world.obstacles = [];
+    world.pickups = [];
+    world.spawnIndex = 0;
+    world.spawnTimer = 0;
+    world.center = H * 0.5;
+    world.time = 0;
+    localDistance = 0;
+    localClears = 0;
+    score = 0;
+    trailPoints.length = 0;
+    player.y = H * 0.5;
+    player.vy = 0;
+    currentRunCountsForProgress = true;
+    state = "running";
+    hideOverlay();
     return;
   }
   hold = true;
@@ -2667,28 +3309,53 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => {
   if (e.code === "Space") onRelease();
 });
-canvas.addEventListener("pointerdown", onPress);
 canvas.addEventListener("pointerdown", (e) => {
-  if (!editorEnabled || !editorArmed) return;
-  const rect = canvas.getBoundingClientRect();
-  const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
-  const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
-  const kind = editorKind.value;
-  editorLevel.push(editorObstacleFromClick(kind, x, y));
-  editorMsg.textContent = `Placed ${kind} (${editorLevel.length}).`;
-  editorArmed = false;
-  editorAddBtn.textContent = "Place On Click";
+  // Editor placement takes priority when armed.
+  if (editorEnabled && editorArmed) {
+    const rect = canvas.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
+    const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
+    const kind = editorKind.value;
+    editorLevel.push(editorObstacleFromClick(kind, x, y));
+    editorMsg.textContent = `Placed ${kind} (${editorLevel.length}).`;
+    editorArmed = false;
+    editorAddBtn.textContent = "Place On Click";
+    return;
+  }
+  onPress();
+});
+overlay.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  onPress();
 });
 window.addEventListener("pointerup", onRelease);
+window.addEventListener("pointercancel", onRelease);
 window.addEventListener("blur", onRelease);
+mobileFlyBtn.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  onPress();
+});
+mobileFlyBtn.addEventListener("pointerup", onRelease);
+mobileFlyBtn.addEventListener("pointerleave", onRelease);
+mobileFlyBtn.addEventListener("pointercancel", onRelease);
 window.addEventListener("beforeunload", () => {
+  stopPresence();
   if (profile.updatedAt) {
     void savePlayerData();
   }
 });
 
+selectedDifficultyId = normalizeDifficultyId(selectedDifficultyId);
+difficultySelect.value = selectedDifficultyId;
 refreshShopUi();
+updateOnlineCount();
+startPresence();
 setEditorPanelVisible(false);
 if (versionText) versionText.textContent = `v${SITE_VERSION}`;
+updateAdCopy();
+setInterval(rotateAdCopy, 12000);
+if (musicEnabled) {
+  musicToggleBtn.textContent = "Music: On";
+}
 hardReset();
 requestAnimationFrame(render);

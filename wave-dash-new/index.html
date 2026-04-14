@@ -2,8 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+
+    script-src 
+      'self'
+      'unsafe-inline'
+      https://www.gstatic.com
+      https://apis.google.com
+      https://accounts.google.com
+      https://myaccount.google.com
+      https://*.firebaseio.com;
+
+    connect-src 
+      'self'
+      https://*.firebaseio.com
+      wss://*.firebaseio.com
+      https://firestore.googleapis.com
+      https://*.googleapis.com
+      https://identitytoolkit.googleapis.com
+      https://securetoken.googleapis.com
+      https://www.gstatic.com
+      https://accounts.google.com;
+
+style-src 'self' 'unsafe-inline' https://accounts.google.com;
+    
+    img-src 'self' data: https:;
+    
+    font-src 'self' https:;
+    
+    frame-src 'self'
+      https://accounts.google.com
+      https://*.firebaseio.com
+      https://*.firebaseapp.com;
+  ">
+<!-- Google One Tap -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<!-- Firebase Auth logic FIRST -->
+<script type="module" src="auth.js"></script>
+
+<!-- One Tap trigger AFTER -->
+<script type="module" src="onetap.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
   <title>Wave Dash</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -11,8 +55,28 @@
     <section class="hud">
       <h1>Wave Dash</h1>
       <p class="hint">Hold SPACE / click / tap to fly up. Release to dive.</p>
+      <section class="session-tools">
+        <div class="tool-row">
+          <label for="difficultySelect">Difficulty</label>
+          <select id="difficultySelect">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <div class="tool-row">
+          <button id="musicToggleBtn">Music: Off</button>
+          <a class="issues-link" href="https://johart2030.github.io/issues-page/issues-page.html" rel="noreferrer">Issues Page</a>
+        </div>
+      </section>
       <section class="shop">
         <h2>Garage</h2>
+        <div class="shop-preview" id="shopPreview">
+          <div class="shop-preview-copy">
+            <strong id="shopPreviewTitle">Starter Loadout</strong>
+            <p id="shopPreviewText">Pick a sprite, trail, or color to preview what you are buying or equipping.</p>
+          </div>
+        </div>
         <div class="shop-row">
           <label for="spriteSelect">Sprite</label>
           <select id="spriteSelect"></select>
@@ -38,6 +102,10 @@
       <section class="site-version">
         <h2>Site Version</h2>
         <p id="versionText">v0</p>
+      </section>
+      <section class="ad-panel" id="adPanel">
+        <h2>Sponsored</h2>
+        <p id="adCopy">Wave Dash house ad loading...</p>
       </section>
       <div class="editor-toggle">
         <button id="editorPanelToggleBtn">Level Editor</button>
@@ -78,7 +146,7 @@
       </section>
     </section>
 
-    <section class="game-wrap">
+    <section class="game-wrap" id="gameWrap">
       <canvas id="game" width="960" height="540" aria-label="game canvas"></canvas>
       <div class="game-top">
         <div class="game-stats">
@@ -86,12 +154,14 @@
           <span>Best: <strong id="best">0</strong></span>
           <span>Speed: <strong id="speed">1.00x</strong></span>
           <span>Points: <strong id="coins">0</strong></span>
+          <span>Online: <strong id="onlineCount">0</strong></span>
         </div>
         <div class="game-mp">
           <span id="mpStatus">Multiplayer: Off</span>
           <div class="game-mp-actions">
             <button id="mpToggleBtn">Multiplayer</button>
             <button id="mpRoomBtn">Room</button>
+            <button id="fullscreenBtn">Full Screen</button>
             <button id="openAuthBtn">Login</button>
           </div>
         </div>
@@ -100,6 +170,7 @@
         <h2 id="overlayTitle">Press Space To Start</h2>
         <p id="overlayText">Avoid the wave walls and survive as long as possible.</p>
       </div>
+      <button class="mobile-fly-btn" id="mobileFlyBtn" aria-label="Hold to fly">Hold To Fly</button>
     </section>
   </main>
 
@@ -108,9 +179,9 @@
       <button class="close-btn" id="closeAuthBtn" aria-label="Close login">X</button>
       <h2>Account</h2>
       <p id="authState">Guest mode (login optional)</p>
-      <input id="authName" type="text" placeholder="Display name (for sign up)" />
-      <input id="authEmail" type="email" placeholder="Email" />
-      <input id="authPassword" type="password" placeholder="Password" />
+      <input id="authName" type="text" placeholder="Display name (for sign up)" maxlength="24" autocomplete="nickname" />
+      <input id="authEmail" type="email" placeholder="Email" maxlength="120" autocomplete="email" />
+      <input id="authPassword" type="password" placeholder="Password" minlength="8" maxlength="128" autocomplete="current-password" />
       <div class="auth-actions">
         <button id="emailLoginBtn">Log in with Email</button>
         <button id="emailSignupBtn">Sign up with Email</button>
@@ -128,7 +199,7 @@
       <div class="auth-actions">
         <label for="roomListSelect">Available rooms</label>
         <select id="roomListSelect"></select>
-        <input id="roomCodeInput" type="text" placeholder="Room code" />
+        <input id="roomCodeInput" type="text" placeholder="Room code" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false" pattern="[A-Z2-9]{5}" />
         <button id="roomCreateBtn">Create Room</button>
         <button id="roomJoinBtn">Join Room</button>
         <button id="roomStartBtn" disabled>Start Race (Owner)</button>
