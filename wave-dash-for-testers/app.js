@@ -88,6 +88,7 @@ const adCopy = document.getElementById("adCopy");
 const mobileFlyBtn = document.getElementById("mobileFlyBtn");
 const mpToggleBtn = document.getElementById("mpToggleBtn");
 const mpStatus = document.getElementById("mpStatus");
+const onlineStatEl = document.getElementById("onlineStat");
 const onlineCountEl = document.getElementById("onlineCount");
 const versionText = document.getElementById("versionText");
 const fullscreenBtn = document.getElementById("fullscreenBtn");
@@ -111,7 +112,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 26;
+const SITE_VERSION = 27;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -1227,9 +1228,11 @@ function updateOnlineCount() {
     }
     onlinePlayers.sort((a, b) => a.localeCompare(b));
     onlineCountEl.textContent = String(onlinePlayers.length);
-    onlineCountEl.title = onlinePlayers.length
+    const onlineTitle = onlinePlayers.length
       ? `Online now: ${onlinePlayers.join(", ")}`
       : "No players online";
+    onlineCountEl.title = onlineTitle;
+    if (onlineStatEl) onlineStatEl.title = onlineTitle;
   });
 }
 
@@ -1914,6 +1917,7 @@ function hardReset() {
 function startGame() {
   state = "running";
   score = 0;
+  clickCount = 0;
   localClears = 0;
   currentRunCountsForProgress = !isCustomMapRun();
   const isPublicLive =
@@ -1948,6 +1952,7 @@ function startGame() {
 function prepareRaceStart() {
   state = "idle";
   score = 0;
+  clickCount = 0;
   localClears = 0;
   localDistance = 0;
   world.obstacles = [];
@@ -2014,6 +2019,7 @@ function updateLeaderboard() {
 
 function lose() {
   state = "dead";
+  clickCount = 0;
   const rounded = Math.floor(score);
   applyRunResult(rounded);
   if (currentRunCountsForProgress) {

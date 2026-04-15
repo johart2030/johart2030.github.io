@@ -10,24 +10,19 @@ import {
 
 import { firebaseConfig } from "./firebase-config.js";
 
-// Init Firebase
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// 🌐 Make available globally for other scripts
 window.firebaseAuth = auth;
 
-// 👇 One Tap callback (Google Identity Services)
 window.handleCredentialResponse = function (response) {
-  const idToken = response.credential;
+  const idToken = response?.credential;
+  if (!idToken) return;
 
   const credential = GoogleAuthProvider.credential(idToken);
 
   signInWithCredential(auth, credential)
     .then((result) => {
-      console.log("✅ Signed in:", result.user);
-
-      // Fire auth-ready event immediately
       window.dispatchEvent(
         new CustomEvent("auth-ready", {
           detail: { user: result.user }
@@ -35,25 +30,19 @@ window.handleCredentialResponse = function (response) {
       );
     })
     .catch((error) => {
-      console.error("❌ Login error:", error);
+      const code = String(error?.code || "");
+      if (code === "auth/account-exists-with-different-credential") return;
+      console.error("One Tap login error:", error);
     });
 };
 
-// 🔥 MAIN AUTH STATE LISTENER (CRITICAL FIX)
 onAuthStateChanged(auth, (user) => {
-  if (user) {
-    console.log("🔥 Auth ready:", user.uid);
+  if (!user) return;
 
-    // Global access
-    window.currentUser = user;
-
-    // Notify the rest of the game
-    window.dispatchEvent(
-      new CustomEvent("auth-ready", {
-        detail: { user }
-      })
-    );
-  } else {
-    console.log("ℹ️ No user signed in");
-  }
+  window.currentUser = user;
+  window.dispatchEvent(
+    new CustomEvent("auth-ready", {
+      detail: { user }
+    })
+  );
 });
