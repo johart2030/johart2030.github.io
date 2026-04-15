@@ -114,7 +114,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 33;
+const SITE_VERSION = 34;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -2489,7 +2489,6 @@ function update(dt) {
       obstacle.scored = true;
       const clearPoints = getDifficultySettings().clearPoints;
       score += clearPoints;
-      runCoins += clearPoints;
       localClears += 1;
       if (currentRunCountsForProgress) {
         shopMsg.textContent = `Obstacle cleared +${clearPoints} score`;
