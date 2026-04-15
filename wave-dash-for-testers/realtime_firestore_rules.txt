@@ -1,0 +1,44 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "presence": {
+      ".read": true,
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.val() === null || (newData.hasChildren(['lastSeen']) && newData.child('lastSeen').isNumber() && (!newData.child('online').exists() || newData.child('online').isBoolean()) && newData.getChildrenCount() <= 2)"
+      }
+    },
+    "rooms": {
+      ".read": true,
+      "$roomId": {
+        ".write": "auth != null && (($roomId === 'public') || (!data.exists() && newData.child('ownerId').val() === auth.uid) || (data.exists() && data.child('ownerId').val() === auth.uid))",
+        "ownerId": {
+          ".validate": "newData.val() === null || (newData.isString() && (!data.exists() ? newData.val() === auth.uid : newData.val() === data.val()))"
+        },
+        "createdAt": {
+          ".validate": "newData.val() === null || newData.isNumber()"
+        },
+        "seed": {
+          ".validate": "newData.val() === null || newData.isNumber()"
+        },
+        "difficulty": {
+          ".validate": "newData.val() === 'easy' || newData.val() === 'medium' || newData.val() === 'hard' || newData.val() === null"
+        },
+        "startAt": {
+          ".validate": "newData.val() === null || newData.isNumber()"
+        },
+        "raceId": {
+          ".validate": "newData.val() === null || newData.isNumber()"
+        },
+        "players": {
+          "$playerId": {
+            ".read": true,
+            ".write": "auth != null && auth.uid === $playerId",
+            ".validate": "newData.val() === null || (newData.hasChildren(['lastSeen']) && newData.child('lastSeen').isNumber() && (!newData.child('joinedAt').exists() || newData.child('joinedAt').isNumber()) && (!newData.child('x').exists() || newData.child('x').isNumber()) && (!newData.child('y').exists() || newData.child('y').isNumber()) && (!newData.child('vy').exists() || newData.child('vy').isNumber()) && (!newData.child('score').exists() || newData.child('score').isNumber()) && (!newData.child('clears').exists() || newData.child('clears').isNumber()) && (!newData.child('dist').exists() || newData.child('dist').isNumber()) && (!newData.child('sprite').exists() || newData.child('sprite').isString()) && (!newData.child('trail').exists() || newData.child('trail').isString()) && (!newData.child('color').exists() || newData.child('color').isString()) && (!newData.child('name').exists() || (newData.child('name').isString() && newData.child('name').val().length <= 40)))"
+          }
+        }
+      }
+    }
+  }
+}

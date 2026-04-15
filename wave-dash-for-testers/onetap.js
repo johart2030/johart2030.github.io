@@ -2,7 +2,7 @@
 
 // 🔥 Firebase imports
 import { getAuth, signInWithCredential, GoogleAuthProvider } 
-from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
+from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 
 // 🔥 This connects One Tap → Firebase
 window.handleCredentialResponse = (response) => {

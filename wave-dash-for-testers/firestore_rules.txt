@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isNonNegativeNumber(value) {
+      return (value is int || value is float) && value >= 0;
+    }
+
+    function isStringList(value) {
+      return value is list;
+    }
+
+    function validProfile(profile) {
+      return profile is map
+        && profile.keys().hasOnly([
+          'bestScore',
+          'lastScore',
+          'totalRuns',
+          'totalScore',
+          'coins',
+          'ownedSprites',
+          'ownedTrails',
+          'ownedColors',
+          'equippedSprite',
+          'equippedTrail',
+          'equippedColor',
+          'updatedAt'
+        ])
+        && isNonNegativeNumber(profile.bestScore)
+        && isNonNegativeNumber(profile.lastScore)
+        && isNonNegativeNumber(profile.totalRuns)
+        && isNonNegativeNumber(profile.totalScore)
+        && isNonNegativeNumber(profile.coins)
+        && isStringList(profile.ownedSprites)
+        && isStringList(profile.ownedTrails)
+        && isStringList(profile.ownedColors)
+        && profile.equippedSprite is string
+        && profile.equippedTrail is string
+        && profile.equippedColor is string
+        && isNonNegativeNumber(profile.updatedAt);
+    }
+
+    function validPlayerDoc(data) {
+      return data.keys().hasOnly(['profile', 'updatedAt'])
+        && validProfile(data.profile)
+        && data.updatedAt is timestamp;
+    }
+
+    function validLeaderboardDoc(data) {
+      return data.keys().hasOnly(['name', 'bestScore', 'updatedAt'])
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 40
+        && isNonNegativeNumber(data.bestScore)
+        && data.updatedAt is timestamp;
+    }
+
+    match /players/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && validPlayerDoc(request.resource.data);
+      allow delete: if isOwner(userId);
+    }
+
+    match /leaderboard/{userId} {
+      allow read: if true;
+      allow create, update: if isOwner(userId) && validLeaderboardDoc(request.resource.data);
+      allow delete: if isOwner(userId);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

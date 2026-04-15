@@ -1,6 +1,6 @@
 // auth.js (module)
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
 import {
   getAuth,
   signInWithCredential,
@@ -11,7 +11,7 @@ import {
 import { firebaseConfig } from "./firebase-config.js";
 
 // Init Firebase
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
 // 🌐 Make available globally for other scripts

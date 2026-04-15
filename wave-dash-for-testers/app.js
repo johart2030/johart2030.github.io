@@ -109,7 +109,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 23.5;
+const SITE_VERSION = 24;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -368,6 +368,7 @@ if (validFirebaseConfig(firebaseConfig)) {
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       uid = user.uid;
+      startPresence(uid);
       authState.textContent = `Signed in: ${user.displayName || user.email || user.uid} (syncing...)`;
       openAuthBtn.textContent = "Account";
       logoutBtn.disabled = false;
@@ -376,6 +377,7 @@ if (validFirebaseConfig(firebaseConfig)) {
       authPassword.value = "";
       subscribeLeaderboard();
     } else {
+      stopPresence();
       uid = null;
       authState.textContent = "Guest mode (login optional)";
       openAuthBtn.textContent = "Login";
@@ -3328,7 +3330,7 @@ selectedDifficultyId = normalizeDifficultyId(selectedDifficultyId);
 difficultySelect.value = selectedDifficultyId;
 refreshShopUi();
 updateOnlineCount();
-startPresence();
+startPresence(uid);
 setEditorPanelVisible(false);
 if (versionText) versionText.textContent = `v${SITE_VERSION}`;
 updateAdCopy();
@@ -3341,16 +3343,19 @@ requestAnimationFrame(render);
 
 // Write a heartbeat to presence/{id} every 4 seconds so this player
 // shows up in the online count even during solo play.
-function startPresence(user) {
+function startPresence(uidValue = uid) {
   if (!rtdb) return;
-  if (user) {
-    console.error("startPresence blocked: no user");
+  if (!uidValue) {
+    stopPresence();
     return;
   }
 
-  const uid = user;
+  if (presencePingTimer) {
+    clearInterval(presencePingTimer);
+    presencePingTimer = null;
+  }
 
-  const presenceRef = dbRef(rtdb, `presence/${uid}`);
+  presenceRef = dbRef(rtdb, `presence/${uidValue}`);
 
   function ping() {
     void dbUpdate(presenceRef, {
@@ -3359,12 +3364,14 @@ function startPresence(user) {
     });
   }
 
-  // initial ping
-  ping();
+  // Small delay avoids a burst right at startup/auth transition.
+  setTimeout(() => {
+    if (!presenceRef) return;
+    ping();
+  }, 750);
 
   // heartbeat
-  if (window.presencePingTimer) clearInterval(window.presencePingTimer);
-  window.presencePingTimer = setInterval(ping, 4000);
+  presencePingTimer = setInterval(ping, 4000);
 
   // cleanup on exit
   onDisconnect(presenceRef).remove();
