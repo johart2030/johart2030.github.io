@@ -44,6 +44,7 @@ const musicToggleBtn = document.getElementById("musicToggleBtn");
 const scoreEl = document.getElementById("score");
 const bestEl = document.getElementById("best");
 const coinsEl = document.getElementById("coins");
+const runCoinsEl = document.getElementById("runCoins");
 const speedEl = document.getElementById("speed");
 const fpsCountEl = document.getElementById("fpsCount");
 const clickCountEl = document.getElementById("clickCount");
@@ -113,7 +114,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 29;
+const SITE_VERSION = 31;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -281,6 +282,7 @@ let musicTimer = null;
 let musicNextAt = 0;
 let sharedSpawnCache = [];
 let clickCount = 0;
+let runCoins = 0;
 let fpsDisplay = 0;
 let fpsSampleElapsed = 0;
 let fpsSampleFrames = 0;
@@ -1937,6 +1939,7 @@ document.addEventListener("fullscreenchange", () => {
 function hardReset() {
   state = "idle";
   score = 0;
+  runCoins = 0;
   localClears = 0;
   localDistance = 0;
   applyDifficultySettings();
@@ -1957,6 +1960,7 @@ function hardReset() {
 function startGame() {
   state = "running";
   score = 0;
+  runCoins = 0;
   clickCount = 0;
   localClears = 0;
   currentRunCountsForProgress = !isCustomMapRun();
@@ -1992,6 +1996,7 @@ function startGame() {
 function prepareRaceStart() {
   state = "idle";
   score = 0;
+  runCoins = 0;
   clickCount = 0;
   localClears = 0;
   localDistance = 0;
@@ -2083,14 +2088,23 @@ function lose() {
     localDistance = 0;
   }
   if (mpEnabled && mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
-    showOverlay("Crashed", `Score ${rounded}. Wait for the room owner to start the next race.`);
+    showOverlay(
+      "Crashed",
+      `Score ${rounded}. Final Run Coins: ${Math.floor(runCoins)}. Wait for the room owner to start the next race.`
+    );
     return;
   }
   if (mpEnabled && mpRoomId === MULTI_PUBLIC_ROOM_ID) {
-    showOverlay("Crashed", `Score ${rounded}. Press Space or tap to re-enter the race.`);
+    showOverlay(
+      "Crashed",
+      `Score ${rounded}. Final Run Coins: ${Math.floor(runCoins)}. Press Space or tap to re-enter the race.`
+    );
     return;
   }
-  showOverlay("Crashed", `Score ${rounded}. Press Space or click to restart.`);
+  showOverlay(
+    "Crashed",
+    `Score ${rounded}. Final Run Coins: ${Math.floor(runCoins)}. Press Space or click to restart.`
+  );
 }
 
 function rand(min, max) {
@@ -2484,6 +2498,7 @@ function update(dt) {
       obstacle.scored = true;
       const clearPoints = getDifficultySettings().clearPoints;
       score += clearPoints;
+      runCoins += clearPoints;
       localClears += 1;
       if (currentRunCountsForProgress) {
         shopMsg.textContent = `Obstacle cleared +${clearPoints} score`;
@@ -2536,6 +2551,7 @@ function update(dt) {
     const pickup = world.pickups[i];
     if (distSq(player.x, player.y, pickup.x, pickup.y) <= (player.r + pickup.r) ** 2) {
       score += pickup.value;
+      runCoins += pickup.value;
       if (currentRunCountsForProgress) {
         shopMsg.textContent = `Coin +${pickup.value} score`;
       }
@@ -3301,6 +3317,7 @@ function drawUi() {
   scoreEl.textContent = String(Math.floor(score));
   speedEl.textContent = `${world.speedScale.toFixed(2)}x`;
   coinsEl.textContent = String(profile.coins);
+  runCoinsEl.textContent = String(Math.floor(runCoins));
   fpsCountEl.textContent = String(fpsDisplay);
   clickCountEl.textContent = String(clickCount);
 }
@@ -3365,6 +3382,7 @@ function onPress() {
     localDistance = 0;
     localClears = 0;
     score = 0;
+    runCoins = 0;
     trailPoints.length = 0;
     player.y = H * 0.5;
     player.vy = 0;
