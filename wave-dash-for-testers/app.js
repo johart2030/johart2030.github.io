@@ -45,6 +45,8 @@ const scoreEl = document.getElementById("score");
 const bestEl = document.getElementById("best");
 const coinsEl = document.getElementById("coins");
 const speedEl = document.getElementById("speed");
+const fpsCountEl = document.getElementById("fpsCount");
+const clickCountEl = document.getElementById("clickCount");
 const overlay = document.getElementById("overlay");
 const overlayTitle = document.getElementById("overlayTitle");
 const overlayText = document.getElementById("overlayText");
@@ -109,7 +111,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 24;
+const SITE_VERSION = 26;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -276,6 +278,11 @@ let audioCtx = null;
 let musicTimer = null;
 let musicNextAt = 0;
 let sharedSpawnCache = [];
+let clickCount = 0;
+let fpsDisplay = 0;
+let fpsSampleElapsed = 0;
+let fpsSampleFrames = 0;
+const activeFlyKeys = new Set();
 
 let profile = loadLocalProfile();
 let best = profile.bestScore;
@@ -370,7 +377,7 @@ if (validFirebaseConfig(firebaseConfig)) {
       uid = user.uid;
       startPresence(uid);
       authState.textContent = `Signed in: ${user.displayName || user.email || user.uid} (syncing...)`;
-      openAuthBtn.textContent = "Account";
+      updateAccountButton(user);
       logoutBtn.disabled = false;
       await loadPlayerData(user.uid);
       authState.textContent = `Signed in: ${user.displayName || user.email || user.uid}`;
@@ -380,7 +387,7 @@ if (validFirebaseConfig(firebaseConfig)) {
       stopPresence();
       uid = null;
       authState.textContent = "Guest mode (login optional)";
-      openAuthBtn.textContent = "Login";
+      updateAccountButton(null);
       logoutBtn.disabled = true;
       if (unsubscribeProfile) {
         unsubscribeProfile();
@@ -399,6 +406,7 @@ if (validFirebaseConfig(firebaseConfig)) {
   });
 } else {
   authState.textContent = "Guest mode (Firebase auth not configured)";
+  updateAccountButton(null);
   openAuthBtn.disabled = true;
   googleLoginBtn.disabled = true;
   emailLoginBtn.disabled = true;
@@ -564,6 +572,36 @@ function sanitizeDisplayName(value) {
     .replace(/[^\w .-]/g, "")
     .trim()
     .slice(0, 24);
+}
+
+function getAccountLabel(user) {
+  const source = sanitizeDisplayName(user?.displayName || user?.email || user?.uid || "");
+  return source || "Login";
+}
+
+function updateAccountButton(user) {
+  if (!openAuthBtn) return;
+  openAuthBtn.style.backgroundImage = "";
+  openAuthBtn.classList.remove("account-avatar");
+  openAuthBtn.textContent = "Login";
+  openAuthBtn.title = "Login";
+  openAuthBtn.setAttribute("aria-label", "Login");
+
+  if (!user) return;
+
+  const label = getAccountLabel(user);
+  const initial = label.charAt(0).toUpperCase() || "A";
+  openAuthBtn.classList.add("account-avatar");
+  openAuthBtn.title = label;
+  openAuthBtn.setAttribute("aria-label", `Account: ${label}`);
+  openAuthBtn.textContent = user.photoURL ? "" : initial;
+  if (user.photoURL) {
+    openAuthBtn.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.08), rgba(0,0,0,0.08)), url("${user.photoURL}")`;
+  }
+}
+
+function isFlyKey(code) {
+  return code === "Space" || code === "ArrowUp" || code === "KeyW";
 }
 
 function normalizeEmail(value) {
@@ -1177,17 +1215,21 @@ function updateOnlineCount() {
   // Watch the dedicated presence/ node which all players (solo + mp) write to.
   onlineCountUnsub = onValue(dbRef(rtdb, "presence"), (snap) => {
     const now = Date.now() + rtdbOffsetMs;
-    const uniquePlayers = new Set();
+    const onlinePlayers = [];
     if (snap.exists()) {
       const entries = snap.val() || {};
       for (const [id, data] of Object.entries(entries)) {
         const lastSeen = coerceTimestampMs(data?.lastSeen);
         if (lastSeen && now - lastSeen <= MULTI_STALE_MS) {
-          uniquePlayers.add(id);
+          onlinePlayers.push(sanitizePlayerName(data?.name || id));
         }
       }
     }
-    onlineCountEl.textContent = String(uniquePlayers.size);
+    onlinePlayers.sort((a, b) => a.localeCompare(b));
+    onlineCountEl.textContent = String(onlinePlayers.length);
+    onlineCountEl.title = onlinePlayers.length
+      ? `Online now: ${onlinePlayers.join(", ")}`
+      : "No players online";
   });
 }
 
@@ -3213,11 +3255,20 @@ function drawUi() {
   scoreEl.textContent = String(Math.floor(score));
   speedEl.textContent = `${world.speedScale.toFixed(2)}x`;
   coinsEl.textContent = String(profile.coins);
+  fpsCountEl.textContent = String(fpsDisplay);
+  clickCountEl.textContent = String(clickCount);
 }
 
 function render(t) {
   const dt = Math.min(0.033, (t - last) / 1000);
   last = t;
+  fpsSampleElapsed += dt;
+  fpsSampleFrames += 1;
+  if (fpsSampleElapsed >= 0.25) {
+    fpsDisplay = Math.round(fpsSampleFrames / fpsSampleElapsed);
+    fpsSampleElapsed = 0;
+    fpsSampleFrames = 0;
+  }
 
   update(dt);
   drawBackground(t);
@@ -3246,9 +3297,12 @@ function hideOverlay() {
 function onPress() {
   enableMusicFromGesture();
   if (editorEnabled && editorArmed) return;
+  clickCount += 1;
   // In private rooms, only the race start countdown triggers startGame — not the player pressing.
   if (mpEnabled && mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
     hold = true;
+    player.vy = -world.scroll;
+    player.y = Math.max(player.r, player.y - Math.max(8, world.scroll * 0.02));
     return;
   }
   // In public rooms after dying, pressing restarts as a free-fly spectator from current position.
@@ -3271,10 +3325,14 @@ function onPress() {
     currentRunCountsForProgress = true;
     state = "running";
     hideOverlay();
+    player.vy = -world.scroll;
+    player.y = Math.max(player.r, player.y - Math.max(8, world.scroll * 0.02));
     return;
   }
-  hold = true;
   if (state === "idle" || state === "dead") startGame();
+  hold = true;
+  player.vy = -world.scroll;
+  player.y = Math.max(player.r, player.y - Math.max(8, world.scroll * 0.02));
 }
 
 function onRelease() {
@@ -3282,13 +3340,16 @@ function onRelease() {
 }
 
 window.addEventListener("keydown", (e) => {
-  if (e.code === "Space") {
-    e.preventDefault();
-    onPress();
-  }
+  if (!isFlyKey(e.code)) return;
+  e.preventDefault();
+  if (e.repeat || activeFlyKeys.has(e.code)) return;
+  activeFlyKeys.add(e.code);
+  onPress();
 });
 window.addEventListener("keyup", (e) => {
-  if (e.code === "Space") onRelease();
+  if (!isFlyKey(e.code)) return;
+  activeFlyKeys.delete(e.code);
+  if (activeFlyKeys.size === 0) onRelease();
 });
 canvas.addEventListener("pointerdown", (e) => {
   // Editor placement takes priority when armed.
@@ -3311,7 +3372,10 @@ overlay.addEventListener("pointerdown", (e) => {
 });
 window.addEventListener("pointerup", onRelease);
 window.addEventListener("pointercancel", onRelease);
-window.addEventListener("blur", onRelease);
+window.addEventListener("blur", () => {
+  activeFlyKeys.clear();
+  onRelease();
+});
 mobileFlyBtn.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   onPress();
@@ -3360,7 +3424,8 @@ function startPresence(uidValue = uid) {
   function ping() {
     void dbUpdate(presenceRef, {
       lastSeen: rtdbServerTimestamp(),
-      online: true
+      online: true,
+      name: sanitizePlayerName(auth?.currentUser?.displayName || auth?.currentUser?.email || uidValue)
     });
   }
 

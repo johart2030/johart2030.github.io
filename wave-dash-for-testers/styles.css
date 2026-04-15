@@ -348,6 +348,35 @@ canvas {
   pointer-events: auto;
 }
 
+.account-btn {
+  min-width: 92px;
+  justify-content: center;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.account-btn.account-avatar {
+  min-width: 44px;
+  width: 44px;
+  padding: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  font-weight: 700;
+  text-transform: uppercase;
+  background-color: #17324a;
+  box-shadow: 0 0 0 1px #ffffff33;
+}
+
+.account-btn.account-avatar:hover {
+  transform: translateY(-1px);
+}
+
+#onlineCount {
+  cursor: help;
+}
+
 .game-mp {
   display: flex;
   flex-direction: column;
