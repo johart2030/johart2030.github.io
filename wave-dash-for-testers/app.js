@@ -109,7 +109,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 23.4;
+const SITE_VERSION = 23.5;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -3343,12 +3343,12 @@ requestAnimationFrame(render);
 // shows up in the online count even during solo play.
 function startPresence(user) {
   if (!rtdb) return;
-  if (!user?.uid) {
+  if (user) {
     console.error("startPresence blocked: no user");
     return;
   }
 
-  const uid = user.uid;
+  const uid = user;
 
   const presenceRef = dbRef(rtdb, `presence/${uid}`);
 
