@@ -375,7 +375,45 @@ canvas {
 }
 
 #onlineStat {
-  cursor: help;
+  cursor: pointer;
+}
+
+.online-stat {
+  appearance: none;
+  border: 1px solid #ffffff1f;
+  background: rgba(255, 255, 255, 0.02);
+  color: inherit;
+  text-align: left;
+  padding: 0.28rem 0.4rem;
+  min-height: 0;
+  border-radius: 8px;
+}
+
+.online-stat:hover,
+.online-stat:focus-visible {
+  border-color: #73f2ff66;
+  background: rgba(115, 242, 255, 0.08);
+  outline: none;
+}
+
+.online-popover {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  min-width: 200px;
+  max-width: 280px;
+  background: rgba(5, 16, 24, 0.96);
+  border: 1px solid #ffffff26;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+  font-size: 0.84rem;
+  line-height: 1.4;
+  z-index: 5;
+}
+
+.online-popover.hidden {
+  display: none;
 }
 
 .game-mp {

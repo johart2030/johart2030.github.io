@@ -156,7 +156,8 @@ style-src 'self' 'unsafe-inline' https://accounts.google.com;
           <span>Points: <strong id="coins">0</strong></span>
           <span>FPS: <strong id="fpsCount">0</strong></span>
           <span>Clicks: <strong id="clickCount">0</strong></span>
-          <span id="onlineStat" title="No players online">Online: <strong id="onlineCount">0</strong></span>
+          <button id="onlineStat" type="button" class="online-stat">Online: <strong id="onlineCount">0</strong></button>
+          <div id="onlinePopover" class="online-popover hidden" aria-live="polite"></div>
         </div>
         <div class="game-mp">
           <span id="mpStatus">Multiplayer: Off</span>

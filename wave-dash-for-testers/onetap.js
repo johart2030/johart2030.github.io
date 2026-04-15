@@ -17,6 +17,4 @@ window.addEventListener("load", () => {
     auto_select: false,
     cancel_on_tap_outside: true,
   });
-
-  google.accounts.id.prompt();
 });

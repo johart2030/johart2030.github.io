@@ -90,6 +90,7 @@ const mpToggleBtn = document.getElementById("mpToggleBtn");
 const mpStatus = document.getElementById("mpStatus");
 const onlineStatEl = document.getElementById("onlineStat");
 const onlineCountEl = document.getElementById("onlineCount");
+const onlinePopoverEl = document.getElementById("onlinePopover");
 const versionText = document.getElementById("versionText");
 const fullscreenBtn = document.getElementById("fullscreenBtn");
 const mpRoomBtn = document.getElementById("mpRoomBtn");
@@ -112,7 +113,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 28;
+const SITE_VERSION = 29;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -284,6 +285,7 @@ let fpsDisplay = 0;
 let fpsSampleElapsed = 0;
 let fpsSampleFrames = 0;
 const activeFlyKeys = new Set();
+let onlineNames = [];
 
 let profile = loadLocalProfile();
 let best = profile.bestScore;
@@ -490,6 +492,26 @@ roomModal.addEventListener("click", (e) => {
 
 openAuthBtn.addEventListener("click", () => {
   authModal.classList.remove("hidden");
+});
+
+onlineStatEl?.addEventListener("mouseenter", () => {
+  setOnlinePopoverVisible(true);
+});
+
+onlineStatEl?.addEventListener("mouseleave", () => {
+  setOnlinePopoverVisible(false);
+});
+
+onlineStatEl?.addEventListener("click", (e) => {
+  e.preventDefault();
+  const shouldShow = onlinePopoverEl?.classList.contains("hidden");
+  setOnlinePopoverVisible(Boolean(shouldShow));
+});
+
+document.addEventListener("click", (e) => {
+  if (!onlineStatEl || !onlinePopoverEl) return;
+  if (onlineStatEl.contains(e.target) || onlinePopoverEl.contains(e.target)) return;
+  setOnlinePopoverVisible(false);
 });
 
 closeAuthBtn.addEventListener("click", () => {
@@ -1227,13 +1249,31 @@ function updateOnlineCount() {
       }
     }
     onlinePlayers.sort((a, b) => a.localeCompare(b));
+    onlineNames = onlinePlayers;
     onlineCountEl.textContent = String(onlinePlayers.length);
-    const onlineTitle = onlinePlayers.length
-      ? `Online now: ${onlinePlayers.join(", ")}`
-      : "No players online";
-    onlineCountEl.title = onlineTitle;
-    if (onlineStatEl) onlineStatEl.title = onlineTitle;
+    renderOnlinePopover();
   });
+}
+
+function renderOnlinePopover() {
+  if (!onlinePopoverEl) return;
+  if (!onlineNames.length) {
+    onlinePopoverEl.textContent = "No players online";
+    return;
+  }
+  onlinePopoverEl.replaceChildren(
+    ...onlineNames.map((name) => {
+      const row = document.createElement("div");
+      row.textContent = name;
+      return row;
+    })
+  );
+}
+
+function setOnlinePopoverVisible(visible) {
+  if (!onlinePopoverEl) return;
+  renderOnlinePopover();
+  onlinePopoverEl.classList.toggle("hidden", !visible);
 }
 
 function stopPresence() {
