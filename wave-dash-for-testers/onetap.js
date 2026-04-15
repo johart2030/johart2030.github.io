@@ -18,7 +18,5 @@ window.addEventListener("load", () => {
     cancel_on_tap_outside: true,
   });
 
-  google.accounts.id.prompt((notification) => {
-    if (notification.isNotDisplayed?.() || notification.isSkippedMoment?.()) return;
-  });
+  google.accounts.id.prompt();
 });
