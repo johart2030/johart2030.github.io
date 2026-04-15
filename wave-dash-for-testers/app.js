@@ -114,7 +114,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 31;
+const SITE_VERSION = 33;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -739,6 +739,19 @@ function resetWorldMotion() {
   world.spawnEvery = settings.spawnEvery;
 }
 
+function resetSharedRaceVisualState() {
+  world.spawnIndex = 0;
+  world.spawnTimer = 0;
+  world.obstacles = [];
+  world.pickups = [];
+  world.center = H * 0.5;
+  world.time = 0;
+  localDistance = 0;
+  trailPoints.length = 0;
+  mpTrails.clear();
+  resetWorldMotion();
+}
+
 function computeSharedDistanceWithSettings(elapsedSec, settings) {
   return settings.baseScroll * (elapsedSec + 0.5 * settings.speedGrowth * elapsedSec * elapsedSec);
 }
@@ -975,17 +988,7 @@ async function resetRoomSeed(roomRef) {
       next.raceId = (Number(current?.raceId || 0) + 1) || 1;
       return next;
     });
-    world.sharedDifficulty = difficultyId;
-    sharedSpawnCache = [];
-    applyDifficultySettings();
-    difficultySelect.value = world.sharedDifficulty;
-    const now = Date.now() + rtdbOffsetMs;
-    world.raceId += 1;
-    world.raceStartLocalMs = now;
-    world.sharedStartMs = now + RACE_COUNTDOWN_SEC * 1000;
-    world.awaitingRaceStart = true;
-    world.raceActiveId = 0;
-    prepareRaceStart();
+    roomStatus.textContent = "Race starting...";
   } catch {
     roomStatus.textContent = "Start failed.";
   }
@@ -1534,48 +1537,33 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
     if (seed && seed !== world.sharedSeed) {
       world.sharedSeed = seed;
       sharedSpawnCache = [];
-      world.spawnIndex = 0;
-      world.spawnTimer = 0;
-      world.obstacles = [];
-      world.pickups = [];
-      world.center = H * 0.5;
+      resetSharedRaceVisualState();
     }
     if (raceId && raceId !== world.raceId) {
       world.raceId = raceId;
       world.raceActiveId = 0;
-      if (startAtMs) {
-        if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
-          world.sharedStartMs = startAtMs;
-          world.raceStartLocalMs = null;
-          if (!world.publicStartOverrideMs) {
-            const now = Date.now() + rtdbOffsetMs;
-            world.joinTimeSec = Math.max(0, (now - world.sharedStartMs) / 1000);
-          }
-        } else {
-          world.raceStartLocalMs = startAtMs;
-          world.sharedStartMs = startAtMs + RACE_COUNTDOWN_SEC * 1000;
-          world.joinTimeSec = 0;
+      if (!startAtMs) {
+        world.awaitingRaceStart = false;
+        world.sharedStartMs = null;
+        world.raceStartLocalMs = null;
+        if (mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
+          showOverlay("Race Syncing", "Waiting for the room start to sync...");
+        }
+        return;
+      }
+      if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+        world.sharedStartMs = startAtMs;
+        world.raceStartLocalMs = null;
+        if (!world.publicStartOverrideMs) {
+          const now = Date.now() + rtdbOffsetMs;
+          world.joinTimeSec = Math.max(0, (now - world.sharedStartMs) / 1000);
         }
       } else {
-        const now = Date.now() + rtdbOffsetMs;
-        if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
-          world.sharedStartMs = now;
-          world.raceStartLocalMs = null;
-          world.joinTimeSec = 0;
-        } else {
-          world.raceStartLocalMs = now;
-          world.sharedStartMs = now + RACE_COUNTDOWN_SEC * 1000;
-          world.joinTimeSec = 0;
-        }
+        world.raceStartLocalMs = startAtMs;
+        world.sharedStartMs = startAtMs + RACE_COUNTDOWN_SEC * 1000;
+        world.joinTimeSec = 0;
       }
-      world.spawnIndex = 0;
-      world.spawnTimer = 0;
-      world.obstacles = [];
-      world.pickups = [];
-      world.center = H * 0.5;
-      world.time = 0;
-      localDistance = 0;
-      resetWorldMotion();
+      resetSharedRaceVisualState();
       if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
         world.awaitingRaceStart = false;
         hideOverlay();
@@ -1598,14 +1586,7 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
         world.joinTimeSec = 0;
       }
       world.raceActiveId = 0;
-      world.spawnIndex = 0;
-      world.spawnTimer = 0;
-      world.obstacles = [];
-      world.pickups = [];
-      world.center = H * 0.5;
-      world.time = 0;
-      localDistance = 0;
-      resetWorldMotion();
+      resetSharedRaceVisualState();
       if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
         world.awaitingRaceStart = false;
         hideOverlay();
@@ -1623,8 +1604,7 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
       world.raceStartLocalMs = null;
       world.awaitingRaceStart = false;
       world.joinTimeSec = 0;
-      world.obstacles = [];
-      world.pickups = [];
+      resetSharedRaceVisualState();
       score = 0;
       state = "idle";
       resetPlayerToCenter("Waiting for the race to start.");
@@ -1655,7 +1635,14 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
       const x = getRemoteRenderX(data);
       const y = data.y || 0;
       const trail = mpTrails.get(id) || [];
-      trail.push({ x, y, life: 0.8 });
+      const lastPoint = trail[trail.length - 1];
+      if (lastPoint && Math.abs(lastPoint.x - x) < 4 && Math.abs(lastPoint.y - y) < 4) {
+        lastPoint.x = x;
+        lastPoint.y = y;
+        lastPoint.life = 1.05;
+      } else {
+        trail.push({ x, y, life: 1.05 });
+      }
       mpTrails.set(id, trail);
     }
     for (const id of mpTrails.keys()) {
@@ -2377,6 +2364,10 @@ function update(dt) {
     }
     if (state === "dead") {
       resetWorldMotion();
+      for (const trail of mpTrails.values()) {
+        for (const p of trail) p.life -= dt;
+        while (trail.length > 0 && trail[0].life <= 0) trail.shift();
+      }
     }
     return;
   }
@@ -2945,10 +2936,10 @@ function drawOtherPlayers() {
 }
 
 function getRemoteRenderX(data) {
-  if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+  const remoteDist = Number(data?.dist);
+  if (!Number.isFinite(remoteDist)) {
     return clamp(Number(data?.x ?? player.x), -80, W + 80);
   }
-  const remoteDist = Number(data?.dist || 0);
   const delta = remoteDist - localDistance;
   return clamp(player.x + delta, -80, W + 80);
 }
@@ -3384,6 +3375,7 @@ function onPress() {
     score = 0;
     runCoins = 0;
     trailPoints.length = 0;
+    mpTrails.clear();
     player.y = H * 0.5;
     player.vy = 0;
     currentRunCountsForProgress = true;

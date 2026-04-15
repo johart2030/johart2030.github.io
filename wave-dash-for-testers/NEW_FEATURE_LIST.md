@@ -22,19 +22,19 @@ Signed-in users show a profile image or initial.
 Signed-out users see a normal Login button.
 14. Keyboard support for `ArrowUp` and `W` in addition to `Space`
 15. Click counter and FPS counter
+16. Private room race starts use a shared synced start time
+17. Public room player X tracking now uses shared run progress instead of a mismatched fixed X position
+18. Multiplayer race/seed resets now clear shared visual state more consistently
+19. Remote multiplayer trails are smoother and stale trail visuals are cleaned up on resets/restarts
 
 ## In Progress
 
 1. Fix multiplayer
-When the owner starts the game, everyone should start cleanly together.
-Other player visibility and tracking still need polishing.
-Seed handling should be double-checked.
-Obstacle reload behavior in public and private rooms should feel as reliable as singleplayer.
+Private room race starts should be verified on multiple devices.
+Seed / obstacle consistency should be double-checked.
+Other player visibility can still be polished further.
 
-2. Public room player tracking
-Public multiplayer should show other players by their real x and y progress, not a mismatched x-axis approximation.
-
-3. Level editor upgrades
+2. Level editor upgrades
 Add more editor controls like speed-related objects.
 Make the editor easier to use and closer to a real level editor flow.
 
