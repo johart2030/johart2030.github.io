@@ -175,6 +175,11 @@ style-src 'self' 'unsafe-inline' https://accounts.google.com;
         <p id="overlayText">Avoid the wave walls and survive as long as possible.</p>
       </div>
       <button class="mobile-fly-btn" id="mobileFlyBtn" aria-label="Hold to fly">Hold To Fly</button>
+      <div id="oneTapDebug" class="one-tap-debug hidden" aria-live="polite">Sign-in debug: idle</div>
+      <div id="oneTapFallback" class="one-tap-fallback hidden">
+        <p>Sign in to sync your progress and use multiplayer.</p>
+        <button id="oneTapFallbackBtn" type="button">Continue with Google</button>
+      </div>
     </section>
   </main>
 
@@ -216,3 +221,4 @@ style-src 'self' 'unsafe-inline' https://accounts.google.com;
   <script type="module" src="app.js"></script>
 </body>
 </html>
+
