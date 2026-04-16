@@ -1,16 +1,21 @@
-// onetap.js (module)
-import { getAuth, signInWithCredential, GoogleAuthProvider } 
-from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+import { 
+  getAuth, 
+  signInWithCredential, 
+  GoogleAuthProvider,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 
+// ✅ ONLY ONE auth instance
 const auth = getAuth();
 
-// 🔥 REQUIRED: make global
+// ==============================
+// 🔥 GLOBAL CALLBACK (REQUIRED)
+// ==============================
 window.handleCredentialResponse = async (response) => {
   console.log("One Tap triggered");
 
-  const credential = GoogleAuthProvider.credential(response.credential);
-
   try {
+    const credential = GoogleAuthProvider.credential(response.credential);
     const result = await signInWithCredential(auth, credential);
     console.log("Signed in:", result.user);
   } catch (err) {
@@ -18,108 +23,107 @@ window.handleCredentialResponse = async (response) => {
   }
 };
 
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+// ==============================
+// UI ELEMENTS
+// ==============================
+const authModal = document.getElementById("authModal");
+const openAuthBtn = document.getElementById("openAuthBtn");
+const googleLoginBtn = document.getElementById("googleLoginBtn");
+const fallback = document.getElementById("oneTapFallback");
+const fallbackBtn = document.getElementById("oneTapFallbackBtn");
+const debugEl = document.getElementById("oneTapDebug");
 
-window.addEventListener("load", () => {
-  const auth = getAuth();
-  const authModal = document.getElementById("authModal");
-  const openAuthBtn = document.getElementById("openAuthBtn");
-  const googleLoginBtn = document.getElementById("googleLoginBtn");
-  const fallback = document.getElementById("oneTapFallback");
-  const fallbackBtn = document.getElementById("oneTapFallbackBtn");
-  const debugEl = document.getElementById("oneTapDebug");
+// ==============================
+// STATE
+// ==============================
+let initialized = false;
+let fallbackTimer = null;
 
-  let initialized = false;
-  let fallbackTimer = null;
+// ==============================
+// HELPERS
+// ==============================
+function setDebug(msg) {
+  if (!debugEl) return;
+  debugEl.textContent = "Sign-in debug: " + msg;
+  debugEl.classList.remove("hidden");
+}
 
-  function canUseOneTap() {
-    return Boolean(window.google?.accounts?.id && typeof window.handleCredentialResponse === "function");
+function canUseOneTap() {
+  return Boolean(window.google?.accounts?.id && window.handleCredentialResponse);
+}
+
+function isModalOpen() {
+  return authModal && !authModal.classList.contains("hidden");
+}
+
+// ==============================
+// INIT ONE TAP
+// ==============================
+function initOneTap() {
+  if (initialized) return;
+  if (!canUseOneTap()) return;
+
+  google.accounts.id.initialize({
+    client_id: "92140525618-gffm531n2kucvu82s3g4vanobdgp1cqa.apps.googleusercontent.com",
+    callback: window.handleCredentialResponse,
+    auto_select: false,
+    cancel_on_tap_outside: true,
+  });
+
+  initialized = true;
+}
+
+// ==============================
+// PROMPT LOGIC
+// ==============================
+function runOneTap() {
+  if (auth.currentUser || isModalOpen()) {
+    setDebug("blocked (signed in or modal open)");
+    return;
   }
 
-  function isAuthModalOpen() {
-    return Boolean(authModal && !authModal.classList.contains("hidden"));
+  initOneTap();
+
+  if (canUseOneTap()) {
+    google.accounts.id.prompt();
+    setDebug("one tap requested");
+  } else {
+    setDebug("one tap unavailable");
   }
 
-  function setDebugState(message, visible = true) {
-    if (!debugEl) return;
-    debugEl.textContent = `Sign-in debug: ${message}`;
-    debugEl.classList.toggle("hidden", !visible);
-  }
-
-  function ensureInitialized() {
-    if (initialized) return;
-    if (!canUseOneTap()) return;
-    google.accounts.id.initialize({
-      client_id: "92140525618-gffm531n2kucvu82s3g4vanobdgp1cqa.apps.googleusercontent.com",
-      callback: window.handleCredentialResponse,
-      auto_select: false,
-      cancel_on_tap_outside: true,
-      itp_support: true,
-    });
-    initialized = true;
-  }
-
-  function hideFallback() {
-    if (fallbackTimer) {
-      clearTimeout(fallbackTimer);
-      fallbackTimer = null;
-    }
-    fallback?.classList.add("hidden");
-  }
-
-  function showFallbackSoon() {
-    hideFallback();
-    fallbackTimer = setTimeout(() => {
-      if (auth.currentUser || isAuthModalOpen()) return;
+  clearTimeout(fallbackTimer);
+  fallbackTimer = setTimeout(() => {
+    if (!auth.currentUser) {
       fallback?.classList.remove("hidden");
-      setDebugState("fallback shown");
-    }, 1400);
-  }
-
-  function syncSignInPrompts() {
-    if (auth.currentUser) {
-      setDebugState("signed in");
-      hideFallback();
-      if (canUseOneTap()) google.accounts.id.cancel();
-      return;
+      setDebug("fallback shown");
     }
+  }, 1400);
+}
 
-    if (isAuthModalOpen()) {
-      setDebugState("auth modal open");
-      hideFallback();
-      if (canUseOneTap()) google.accounts.id.cancel();
-      return;
-    }
-
-    ensureInitialized();
-    if (canUseOneTap()) {
-      google.accounts.id.prompt();
-      setDebugState("one tap requested");
-    } else {
-      setDebugState("one tap unavailable");
-    }
-    showFallbackSoon();
-  }
-
-  fallbackBtn?.addEventListener("click", () => {
-    setDebugState("fallback button clicked");
-    hideFallback();
-    if (authModal?.classList.contains("hidden")) {
-      openAuthBtn?.click();
-    }
-    googleLoginBtn?.click();
-  });
-
-  onAuthStateChanged(auth, () => {
-    syncSignInPrompts();
-  });
-
-  if (authModal) {
-    const observer = new MutationObserver(() => {
-      syncSignInPrompts();
-    });
-    observer.observe(authModal, { attributes: true, attributeFilter: ["class"] });
-  }
-
-  syncSignInPrompts();
+// ==============================
+// FALLBACK BUTTON
+// ==============================
+fallbackBtn?.addEventListener("click", () => {
+  fallback?.classList.add("hidden");
+  googleLoginBtn?.click();
 });
+
+// ==============================
+// AUTH LISTENER
+// ==============================
+onAuthStateChanged(auth, () => {
+  runOneTap();
+});
+
+// ==============================
+// MODAL WATCHER
+// ==============================
+if (authModal) {
+  new MutationObserver(runOneTap)
+    .observe(authModal, { attributes: true, attributeFilter: ["class"] });
+}
+
+// ==============================
+// START
+// ==============================
+runOneTap();

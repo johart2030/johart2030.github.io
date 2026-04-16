@@ -1,4 +1,7 @@
 // auth.js (module)
+window.handleCredentialResponse = (response) => {
+  console.log("One Tap fired", response.credential);
+};
 
 import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
 import {
