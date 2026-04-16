@@ -1,4 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
 import {
   createUserWithEmailAndPassword,
   getAuth,
@@ -9,7 +9,7 @@ import {
   signInWithRedirect,
   signOut,
   updateProfile,
-} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 import {
   doc,
   getDoc,
@@ -21,7 +21,7 @@ import {
   query,
   orderBy,
   limit,
-} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 import {
   getDatabase,
   ref as dbRef,
@@ -33,7 +33,7 @@ import {
   serverTimestamp as rtdbServerTimestamp,
   remove as dbRemove,
   runTransaction,
-} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-database.js";
 import { enableCloudSave, firebaseConfig } from "./firebase-config.js";
 
 const canvas = document.getElementById("game");
@@ -114,7 +114,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 36;
+const SITE_VERSION = 37;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -3496,3 +3496,4 @@ function startPresence(uidValue = uid) {
   // cleanup on exit
   onDisconnect(presenceRef).remove();
 }
+
