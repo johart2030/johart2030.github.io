@@ -1,3 +1,6 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+
 export const firebaseConfig = {
   apiKey: "AIzaSyBmiYTrxcD1OS2WTWQaYP-LNXdNlttQ8qY",
   authDomain: "wave-dash-3ed3a.firebaseapp.com",
@@ -8,5 +11,11 @@ export const firebaseConfig = {
   measurementId: "G-EPF4KJXXMG",
 };
 
-// Keep true for automatic Firestore sync when the player is signed in.
+// ✅ Initialize Firebase ONCE
+const app = initializeApp(firebaseConfig);
+
+// ✅ Export shared auth instance
+export const auth = getAuth(app);
+
+// Keep your setting
 export const enableCloudSave = true;
