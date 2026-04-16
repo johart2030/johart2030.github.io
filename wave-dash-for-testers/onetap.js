@@ -37,7 +37,9 @@ const debugEl = document.getElementById("oneTapDebug");
 // STATE
 // ==============================
 let initialized = false;
+let promptRunning = false;
 let fallbackTimer = null;
+let oneTapReady = false;
 
 // ==============================
 // HELPERS
@@ -61,16 +63,15 @@ function isModalOpen() {
 // ==============================
 function initOneTap() {
   if (initialized) return;
-  if (!canUseOneTap()) return;
+  if (!window.handleCredentialResponse) return;
 
   google.accounts.id.initialize({
     client_id: "92140525618-gffm531n2kucvu82s3g4vanobdgp1cqa.apps.googleusercontent.com",
     callback: window.handleCredentialResponse,
-    auto_select: false,
-    cancel_on_tap_outside: true,
   });
 
   initialized = true;
+  oneTapReady = true;
 }
 
 // ==============================
@@ -84,12 +85,32 @@ function runOneTap() {
 
   initOneTap();
 
-  if (canUseOneTap()) {
-    google.accounts.id.prompt();
-    setDebug("one tap requested");
-  } else {
+  if (!oneTapReady || !canUseOneTap()) {
     setDebug("one tap unavailable");
+    return;
   }
+
+  // ✅ HARD RULE 2 FIX (prevents ALL spam + FedCM lock)
+  if (promptRunning) {
+    setDebug("prompt blocked (already running)");
+    return;
+  }
+
+  promptRunning = true;
+
+  setDebug("one tap requested");
+
+  google.accounts.id.prompt((notification) => {
+    promptRunning = false;
+
+    if (notification.isNotDisplayed()) {
+      console.log("Not displayed:", notification.getNotDisplayedReason());
+    }
+
+    if (notification.isSkippedMoment()) {
+      console.log("Skipped:", notification.getSkippedReason());
+    }
+  });
 
   clearTimeout(fallbackTimer);
   fallbackTimer = setTimeout(() => {
