@@ -1,4 +1,22 @@
 // onetap.js (module)
+import { getAuth, signInWithCredential, GoogleAuthProvider } 
+from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+
+const auth = getAuth();
+
+// 🔥 REQUIRED: make global
+window.handleCredentialResponse = async (response) => {
+  console.log("One Tap triggered");
+
+  const credential = GoogleAuthProvider.credential(response.credential);
+
+  try {
+    const result = await signInWithCredential(auth, credential);
+    console.log("Signed in:", result.user);
+  } catch (err) {
+    console.error("Sign-in error:", err);
+  }
+};
 
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 
