@@ -54,6 +54,12 @@ Finish the rest of keyboard support and add Sayo device input.
 
 6. Backgrounds to buy
 
+7. Death effects
+
+8. You can import a backround of your own if you pay 1000000 points, as well as a sprites, trails, and colors
+
+9.  Fix that when you open the login or rooms button the game doesn't do anything because when i hit w in the rooms trying to get in a room it will just move the wave guy instead of typing w
+
 ## Notes
 
 1. Multiplayer is the biggest remaining system and should stay the main focus until it feels fully stable.
