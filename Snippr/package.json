@@ -1,0 +1,9 @@
+{
+  "name": "snippr",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.mjs",
+    "nef:previews": "node scripts/generate-nef-previews.mjs"
+  }
+}
