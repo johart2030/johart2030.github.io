@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snippr</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="home">
+  <div class="page-shell">
+    <header class="site-header">
+      <nav class="topbar">
+        <a class="brand-lockup" href="index.html">
+          <span class="brand-mark">S</span>
+          <span class="brand-name">Snippr</span>
+        </a>
+
+        <div class="nav-links">
+          <a class="nav-link active" href="index.html">Home</a>
+          <a class="nav-link" href="feed.html">Feed</a>
+          <a class="nav-link" href="albums.html">Albums</a>
+          <a class="nav-link" href="dashboard.html">Dashboard</a>
+        </div>
+
+        <div class="topbar-actions">
+          <div class="user-pill">
+            <img id="userAvatar" alt="" hidden>
+            <span id="userLabel">Guest</span>
+          </div>
+          <button id="authAction" class="ghost-button" type="button" onclick="googleLogin()">Sign in</button>
+        </div>
+      </nav>
+    </header>
+
+    <main class="page-content">
+      <section class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Photo-first sharing</p>
+          <h1>Snippr gives your photos a cleaner home.</h1>
+          <p class="hero-text">
+            Browse a public feed, open every image at full size, and jump into your dashboard when
+            you are signed in to upload.
+          </p>
+          <div class="hero-actions">
+            <button id="heroAuthAction" class="primary-button" type="button" onclick="googleLogin()">Continue with Google</button>
+            <a class="ghost-button" href="feed.html">Explore the feed</a>
+          </div>
+          <p class="status-text" data-status></p>
+        </div>
+
+        <div class="hero-mosaic" aria-hidden="true">
+          <article class="mosaic-card tall sunrise"><span>Nature</span></article>
+          <article class="mosaic-card city"><span>Street</span></article>
+          <article class="mosaic-card portrait"><span>People</span></article>
+          <article class="mosaic-card wide ocean"><span>Travel</span></article>
+        </div>
+      </section>
+
+      <section class="info-grid">
+        <article class="info-card">
+          <p class="eyebrow">Dashboard</p>
+          <h2>Upload only when signed in</h2>
+          <p>Your dashboard is protected, so posting is limited to authenticated users.</p>
+          <a class="text-link" href="dashboard.html">Go to dashboard</a>
+        </article>
+
+        <article class="info-card">
+          <p class="eyebrow">Feed</p>
+          <h2>Browse with full-size preview</h2>
+          <p>Open any photo in the feed to view the full image without the card overlay getting in the way.</p>
+          <a class="text-link" href="feed.html">Open the feed</a>
+        </article>
+
+        <article class="info-card">
+          <p class="eyebrow">Albums</p>
+          <h2>Create public collections</h2>
+          <p>Group related shots into public albums so other people can browse themed sets.</p>
+          <a class="text-link" href="albums.html">Browse albums</a>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
