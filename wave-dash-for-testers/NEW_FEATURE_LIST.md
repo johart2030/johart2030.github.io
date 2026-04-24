@@ -60,6 +60,16 @@ Finish the rest of keyboard support and add Sayo device input.
 
 9.  Fix that when you open the login or rooms button the game doesn't do anything because when i hit w in the rooms trying to get in a room it will just move the wave guy instead of typing w
 
+10. Make the game screen fit any screen width without dead space
+
+11. Add banner ads on the sides for money $$
+
+12. I jhave a problem where on one computer my cins save but when i load back onto my other computer my score changes to what it was when i last used the second computer. 
+
+13. when all people die in a room it restarts
+
+14. fix trail of other players in multiplayer
+
 ## Notes
 
 1. Multiplayer is the biggest remaining system and should stay the main focus until it feels fully stable.
