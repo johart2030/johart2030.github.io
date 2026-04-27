@@ -115,6 +115,48 @@
     box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
 }
 
+.new {
+    position: relative;
+    display: block;
+    text-decoration: none;
+    color: #f5f7fa;
+    background: linear-gradient(135deg, #5f6670, #c7cdd4, #6e7681);
+    padding: 15px;
+    margin: 12px 0;
+    border-radius: 10px;
+    font-size: 1.2rem;
+    text-align: center;
+    transition: 0.25s;
+    border: 1px solid #8b949e;
+    overflow: hidden;
+    font-weight: bold;
+}
+
+.new::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -75%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(
+        120deg,
+        transparent,
+        rgba(255,255,255,0.5),
+        transparent
+    );
+    transform: skewX(-20deg);
+}
+
+.new:hover::before {
+    animation: shine 0.8s forwards;
+}
+
+.new:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(199, 205, 212, 0.55);
+}
+
 .tag {
     position: absolute;
     top: 6px;
@@ -126,6 +168,11 @@
     border-radius: 6px;
     font-weight: bold;
     letter-spacing: 0.5px;
+}
+
+.tag-new {
+    background: #2f353d;
+    color: #f2f4f7;
 }
     </style>
 </head>
@@ -141,6 +188,11 @@
         <a class="popular" href="/wave-dash-new/" target="_blank">
             <span class="tag">Popular</span>
             Wave Dash
+        </a>
+
+        <a class="new" href="/Snippr" target="_blank" rel="noopener noreferrer">
+            <span class="tag tag-new">New</span>
+            Snippr
         </a>
 
         <!-- GitHub Profile -->
