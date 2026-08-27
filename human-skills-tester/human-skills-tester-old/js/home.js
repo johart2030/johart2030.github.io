@@ -1,0 +1,1 @@
+document.addEventListener('DOMContentLoaded',()=>{const n=HST.completedCount();document.getElementById('completed').textContent=`${n} / 7`;document.getElementById('topScore').textContent=n===7?'All complete':n?'Keep going':'Start testing';});
