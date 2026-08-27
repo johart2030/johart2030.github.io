@@ -1,6 +1,0 @@
-import {auth,onAuthStateChanged,signOut,profileFor,ref,set,onValue,onDisconnect,rtdbTimestamp,rtdb} from './firebase.js';
-const ready=new Promise(resolve=>onAuthStateChanged(auth,async user=>{window.hstUser=user||null;let profile=null;if(user){try{profile=await profileFor(user.uid)}catch(e){console.warn(e)}setupPresence(user,profile)}window.hstProfile=profile;paint(user,profile);resolve({user,profile});}));
-export {ready};
-function paint(user,profile){document.querySelectorAll('[data-auth-area]').forEach(el=>{el.innerHTML=user?`<a href="profile.html" class="account-pill">${escapeHtml(profile?.displayName||user.displayName||'Finish profile')}</a><button class="nav-signout" data-signout>Sign out</button>`:`<a href="login.html" class="account-pill">Sign in</a>`});document.querySelectorAll('[data-signout]').forEach(b=>b.onclick=()=>signOut(auth));}
-function setupPresence(user,profile){const connected=ref(rtdb,'.info/connected'),status=ref(rtdb,`presence/${user.uid}`);onValue(connected,s=>{if(!s.val())return;onDisconnect(status).set({state:'offline',lastChanged:rtdbTimestamp});set(status,{state:'online',displayName:profile?.displayName||user.displayName||'Player',lastChanged:rtdbTimestamp});});}
-function escapeHtml(v){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
