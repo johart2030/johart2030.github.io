@@ -1,4 +1,7 @@
-﻿import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+
+===== FILE: app.js =====
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
 import {
   createUserWithEmailAndPassword,
   getAuth,
@@ -28,7 +31,7 @@ import {
   onValue,
   update as dbUpdate,
   get as dbGet,
-  set as dbSet,               // âœ… ADD THIS
+  set as dbSet,               // ✅ ADD THIS
   onDisconnect,
   serverTimestamp as rtdbServerTimestamp,
   remove as dbRemove,
@@ -114,7 +117,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 39;
+const SITE_VERSION = 38;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -324,7 +327,7 @@ function validFirebaseConfig(config) {
 }
 
 if (validFirebaseConfig(firebaseConfig)) {
-  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  const app = initializeApp(firebaseConfig);
 
   db = getFirestore(app);
   rtdb = getDatabase(app);
@@ -1011,7 +1014,10 @@ function subscribeLeaderboard() {
 }
 
 function getMultiplayerId() {
-  return auth?.currentUser?.uid || uid || null;
+  if (window.firebaseAuth?.currentUser) {
+    return window.firebaseAuth.currentUser.uid;
+  }
+  return null; // or block multiplayer until login
 }
 
 function generateRoomCode() {
@@ -1053,12 +1059,11 @@ async function createRoom() {
     const code = generateRoomCode();
     const roomRef = dbRef(rtdb, `rooms/${code}`);
     const ownerId = getMultiplayerId();
-    if (!ownerId) throw new Error("No authenticated user");
     const seed = Math.floor(Math.random() * 1e9) + 1;
 
     console.log("Creating room:", code);
 
-    // âœ… Create FULL room structure
+    // ✅ Create FULL room structure
     await dbSet(roomRef, {
       ownerId,
       createdAt: rtdbServerTimestamp(),
@@ -1126,14 +1131,13 @@ async function joinRoom() {
 
     const data = snap.val() || {};
     const playerId = getMultiplayerId();
-    if (!playerId) throw new Error("No authenticated user");
     const isOwner = data.ownerId === playerId;
 
     console.log("Joining room:", code);
 
-    // âœ… Add player to room
+    // ✅ Add player to room
     await dbUpdate(dbRef(rtdb, `rooms/${code}/players`), {
-      [playerId]: {
+      [getMultiplayerId()]: {
         joinedAt: Date.now(),
         lastSeen: Date.now()
       }
@@ -1195,7 +1199,7 @@ function startRoomList() {
 
       const option = document.createElement("option");
       option.value = code;
-      option.textContent = `${code} â€” ${count} player${count !== 1 ? "s" : ""} (${difficultyName})`;
+      option.textContent = `${code} — ${count} player${count !== 1 ? "s" : ""} (${difficultyName})`;
 
       roomListSelect.appendChild(option);
     }
@@ -1423,8 +1427,7 @@ function mergeProfiles(localProfile, remoteProfile) {
     lastScore: remoteIsNewer ? remoteProfile.lastScore : localProfile.lastScore,
     totalRuns: Math.max(localProfile.totalRuns, remoteProfile.totalRuns),
     totalScore: Math.max(localProfile.totalScore, remoteProfile.totalScore),
-    // Never let a stale device erase legitimately earned points.
-    coins: Math.max(localProfile.coins, remoteProfile.coins),
+    coins: remoteIsNewer ? remoteProfile.coins : localProfile.coins,
     ownedSprites,
     ownedTrails,
     ownedColors,
@@ -2305,18 +2308,6 @@ function corridorGapAt(obstacle, xPos) {
   return { center, gap: obstacle.gap };
 }
 
-function isTypingTarget(target) {
-  return target instanceof HTMLElement && (
-    target.matches("input, textarea, select, button") || target.isContentEditable
-  );
-}
-function isUiModalOpen() {
-  return !authModal.classList.contains("hidden") || !roomModal.classList.contains("hidden");
-}
-function safelyPauseInput() {
-  hold = false;
-  activeFlyKeys.clear();
-}
 function update(dt) {
   if (mpEnabled && mpPlayerRef) {
     mpSendCooldown -= dt * 1000;
@@ -2348,10 +2339,6 @@ function update(dt) {
     }
   }
 
-  if (isUiModalOpen()) {
-    safelyPauseInput();
-    return;
-  }
   if (mpEnabled && world.awaitingRaceStart) {
     if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
       world.awaitingRaceStart = false;
@@ -2443,11 +2430,6 @@ function update(dt) {
         if (obstacleRightEdge(lastObstacle) < player.x - player.r) {
           lastObstacle.scored = true;
         }
-      }
-      const lastPickup = world.pickups[world.pickups.length - 1];
-      if (lastPickup && lastPickup.spawnT !== undefined) {
-        const pickupDistThen = computeSharedDistance(lastPickup.spawnT);
-        lastPickup.x = (lastPickup.spawnX || PICKUP_SPAWN_X) - (distNow - pickupDistThen);
       }
       world.spawnIndex += 1;
     }
@@ -3369,11 +3351,10 @@ function hideOverlay() {
 
 
 function onPress() {
-  if (isUiModalOpen()) return;
   enableMusicFromGesture();
   if (editorEnabled && editorArmed) return;
   clickCount += 1;
-  // In private rooms, only the race start countdown triggers startGame â€” not the player pressing.
+  // In private rooms, only the race start countdown triggers startGame — not the player pressing.
   if (mpEnabled && mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
     hold = true;
     player.vy = -world.scroll;
@@ -3417,7 +3398,6 @@ function onRelease() {
 }
 
 window.addEventListener("keydown", (e) => {
-  if (isTypingTarget(e.target) || isUiModalOpen()) return;
   if (!isFlyKey(e.code)) return;
   e.preventDefault();
   if (e.repeat || activeFlyKeys.has(e.code)) return;
@@ -3450,9 +3430,6 @@ overlay.addEventListener("pointerdown", (e) => {
 });
 window.addEventListener("pointerup", onRelease);
 window.addEventListener("pointercancel", onRelease);
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) safelyPauseInput();
-});
 window.addEventListener("blur", () => {
   activeFlyKeys.clear();
   onRelease();
@@ -3521,6 +3498,1385 @@ function startPresence(uidValue = uid) {
 
   // cleanup on exit
   onDisconnect(presenceRef).remove();
+}
+
+
+
+===== FILE: auth.js =====
+
+// auth.js (module)
+window.handleCredentialResponse = (response) => {
+  console.log("One Tap fired", response.credential);
+};
+
+import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import {
+  getAuth,
+  signInWithCredential,
+  GoogleAuthProvider,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+
+import { firebaseConfig } from "./firebase-config.js";
+
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+window.firebaseAuth = auth;
+
+window.handleCredentialResponse = function (response) {
+  const idToken = response?.credential;
+  if (!idToken) return;
+
+  const credential = GoogleAuthProvider.credential(idToken);
+
+  signInWithCredential(auth, credential)
+    .then((result) => {
+      window.dispatchEvent(
+        new CustomEvent("auth-ready", {
+          detail: { user: result.user }
+        })
+      );
+    })
+    .catch((error) => {
+      const code = String(error?.code || "");
+      if (code === "auth/account-exists-with-different-credential") return;
+      console.error("One Tap login error:", error);
+    });
+};
+
+onAuthStateChanged(auth, (user) => {
+  if (!user) return;
+
+  window.currentUser = user;
+  window.dispatchEvent(
+    new CustomEvent("auth-ready", {
+      detail: { user }
+    })
+  );
+});
+
+
+===== FILE: firebase-config.js =====
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+
+export const firebaseConfig = {
+  apiKey: "AIzaSyBmiYTrxcD1OS2WTWQaYP-LNXdNlttQ8qY",
+  authDomain: "wave-dash-3ed3a.firebaseapp.com",
+  projectId: "wave-dash-3ed3a",
+  storageBucket: "wave-dash-3ed3a.firebasestorage.app",
+  messagingSenderId: "92140525618",
+  appId: "1:92140525618:web:31e81b8c9a3f2a87bac42b",
+  measurementId: "G-EPF4KJXXMG",
+};
+
+// ✅ Initialize Firebase ONCE
+const app = initializeApp(firebaseConfig);
+
+// ✅ Export shared auth instance
+export const auth = getAuth(app);
+
+// Keep your setting
+export const enableCloudSave = true;
+
+===== FILE: firestore_rules.txt =====
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isNonNegativeNumber(value) {
+      return (value is int || value is float) && value >= 0;
+    }
+
+    function isStringList(value) {
+      return value is list;
+    }
+
+    function validProfile(profile) {
+      return profile is map
+        && profile.keys().hasOnly([
+          'bestScore',
+          'lastScore',
+          'totalRuns',
+          'totalScore',
+          'coins',
+          'ownedSprites',
+          'ownedTrails',
+          'ownedColors',
+          'equippedSprite',
+          'equippedTrail',
+          'equippedColor',
+          'updatedAt'
+        ])
+        && isNonNegativeNumber(profile.bestScore)
+        && isNonNegativeNumber(profile.lastScore)
+        && isNonNegativeNumber(profile.totalRuns)
+        && isNonNegativeNumber(profile.totalScore)
+        && isNonNegativeNumber(profile.coins)
+        && isStringList(profile.ownedSprites)
+        && isStringList(profile.ownedTrails)
+        && isStringList(profile.ownedColors)
+        && profile.equippedSprite is string
+        && profile.equippedTrail is string
+        && profile.equippedColor is string
+        && isNonNegativeNumber(profile.updatedAt);
+    }
+
+    function validPlayerDoc(data) {
+      return data.keys().hasOnly(['profile', 'updatedAt'])
+        && validProfile(data.profile)
+        && data.updatedAt is timestamp;
+    }
+
+    function validLeaderboardDoc(data) {
+      return data.keys().hasOnly(['name', 'bestScore', 'updatedAt'])
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 40
+        && isNonNegativeNumber(data.bestScore)
+        && data.updatedAt is timestamp;
+    }
+
+    match /players/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && validPlayerDoc(request.resource.data);
+      allow delete: if isOwner(userId);
+    }
+
+    match /leaderboard/{userId} {
+      allow read: if true;
+      allow create, update: if isOwner(userId) && validLeaderboardDoc(request.resource.data);
+      allow delete: if isOwner(userId);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+
+===== FILE: index.html =====
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+
+    script-src 
+      'self'
+      'unsafe-inline'
+      https://www.gstatic.com
+      https://apis.google.com
+      https://accounts.google.com
+      https://myaccount.google.com
+      https://*.firebaseio.com;
+
+    connect-src 
+      'self'
+      https://*.firebaseio.com
+      wss://*.firebaseio.com
+      https://firestore.googleapis.com
+      https://*.googleapis.com
+      https://identitytoolkit.googleapis.com
+      https://securetoken.googleapis.com
+      https://www.gstatic.com
+      https://accounts.google.com;
+
+style-src 'self' 'unsafe-inline' https://accounts.google.com;
+    
+    img-src 'self' data: https:;
+    
+    font-src 'self' https:;
+    
+    frame-src 'self'
+      https://accounts.google.com
+      https://*.firebaseio.com
+      https://*.google.com
+      https://*.firebaseapp.com;
+  ">
+<!-- Google One Tap -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<!-- Firebase Auth logic FIRST -->
+<script type="module" src="auth.js"></script>
+
+<!-- One Tap trigger AFTER -->
+<script type="module" src="onetap.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="referrer" content="no-referrer-when-downgrade" />
+  <title>Wave Dash</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="g_id_onload"
+     data-client_id="92140525618-gffm531n2kucvu82s3g4vanobdgp1cqa.apps.googleusercontent.com"
+     data-callback="handleCredentialResponse"
+     data-auto_prompt="true">
+</div>
+  <main class="app">
+    <section class="hud">
+      <h1>Wave Dash</h1>
+      <p class="hint">Hold SPACE / click / tap to fly up. Release to dive.</p>
+      <section class="session-tools">
+        <div class="tool-row">
+          <label for="difficultySelect">Difficulty</label>
+          <select id="difficultySelect">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <div class="tool-row">
+          <button id="musicToggleBtn">Music: Off</button>
+          <a class="issues-link" href="https://johart2030.github.io/issues-page/issues-page.html" rel="noreferrer">Issues Page</a>
+        </div>
+      </section>
+      <section class="shop">
+        <h2>Garage</h2>
+        <div class="shop-preview" id="shopPreview">
+          <div class="shop-preview-copy">
+            <strong id="shopPreviewTitle">Starter Loadout</strong>
+            <p id="shopPreviewText">Pick a sprite, trail, or color to preview what you are buying or equipping.</p>
+          </div>
+        </div>
+        <div class="shop-row">
+          <label for="spriteSelect">Sprite</label>
+          <select id="spriteSelect"></select>
+          <button id="spriteActionBtn">Buy</button>
+        </div>
+        <div class="shop-row">
+          <label for="trailSelect">Trail</label>
+          <select id="trailSelect"></select>
+          <button id="trailActionBtn">Buy</button>
+        </div>
+        <div class="shop-row">
+          <label for="colorSelect">Color</label>
+          <select id="colorSelect"></select>
+          <button id="colorActionBtn">Buy</button>
+        </div>
+        <p id="shopMsg">Earn points from score to buy new looks.</p>
+      </section>
+      <section class="leaderboard">
+        <h2>Leaderboard</h2>
+        <ol id="leaderboardList"></ol>
+        <p class="leaderboard-note">Top 10 best scores (signed-in players only).</p>
+      </section>
+      <section class="site-version">
+        <h2>Site Version</h2>
+        <p id="versionText">v0</p>
+      </section>
+      <section class="ad-panel" id="adPanel">
+        <h2>Sponsored</h2>
+        <p id="adCopy">Wave Dash house ad loading...</p>
+      </section>
+      <div class="editor-toggle">
+        <button id="editorPanelToggleBtn">Level Editor</button>
+      </div>
+      <section class="editor hidden" id="editorPanel">
+        <h2>Level Editor</h2>
+        <div class="editor-row">
+          <button id="editorToggleBtn">Editor: Off</button>
+          <button id="editorPlayBtn">Play Test</button>
+        </div>
+        <div class="editor-row">
+          <label for="editorKind">Type</label>
+          <select id="editorKind">
+            <option value="gate">Gate</option>
+            <option value="movingGate">Moving Gate</option>
+            <option value="pulseGate">Pulse Gate</option>
+            <option value="spinner">Spinner</option>
+            <option value="corridor">Corridor</option>
+          </select>
+          <button id="editorAddBtn">Place On Click</button>
+        </div>
+        <div class="editor-row">
+          <label for="editorGap">Gap</label>
+          <input id="editorGap" type="number" value="150" min="80" max="220" />
+          <label for="editorWidth">Width</label>
+          <input id="editorWidth" type="number" value="64" min="40" max="100" />
+        </div>
+        <div class="editor-row">
+          <label for="editorData">Level JSON</label>
+          <textarea id="editorData" rows="5" placeholder="Export / import level JSON"></textarea>
+        </div>
+        <div class="editor-row">
+          <button id="editorExportBtn">Export</button>
+          <button id="editorImportBtn">Import</button>
+          <button id="editorClearBtn">Clear</button>
+        </div>
+        <p id="editorMsg">Enable editor, then click the canvas to place obstacles.</p>
+      </section>
+    </section>
+
+    <section class="game-wrap" id="gameWrap">
+      <canvas id="game" width="960" height="540" aria-label="game canvas"></canvas>
+      <div class="game-top">
+        <div class="game-stats">
+          <span>Score: <strong id="score">0</strong></span>
+          <span>Best: <strong id="best">0</strong></span>
+          <span>Speed: <strong id="speed">1.00x</strong></span>
+          <span>Points: <strong id="coins">0</strong></span>
+          <span>Run Coins: <strong id="runCoins">0</strong></span>
+          <span>FPS: <strong id="fpsCount">0</strong></span>
+          <span>Clicks: <strong id="clickCount">0</strong></span>
+          <button id="onlineStat" type="button" class="online-stat">Online: <strong id="onlineCount">0</strong></button>
+          <div id="onlinePopover" class="online-popover hidden" aria-live="polite"></div>
+        </div>
+        <div class="game-mp">
+          <span id="mpStatus">Multiplayer: Off</span>
+          <div class="game-mp-actions">
+            <button id="mpToggleBtn">Multiplayer</button>
+            <button id="mpRoomBtn">Room</button>
+            <button id="fullscreenBtn">Full Screen</button>
+            <button id="openAuthBtn" class="account-btn">Login</button>
+          </div>
+        </div>
+      </div>
+      <div class="overlay" id="overlay">
+        <h2 id="overlayTitle">Press Space To Start</h2>
+        <p id="overlayText">Avoid the wave walls and survive as long as possible.</p>
+      </div>
+      <button class="mobile-fly-btn" id="mobileFlyBtn" aria-label="Hold to fly">Hold To Fly</button>
+      <div id="oneTapDebug" class="one-tap-debug hidden" aria-live="polite">Sign-in debug: idle</div>
+      <div id="oneTapFallback" class="one-tap-fallback hidden">
+        <p>Sign in to sync your progress and use multiplayer.</p>
+        <button id="oneTapFallbackBtn" type="button">Continue with Google</button>
+      </div>
+    </section>
+  </main>
+
+  <section class="auth-modal hidden" id="authModal">
+    <div class="auth-card">
+      <button class="close-btn" id="closeAuthBtn" aria-label="Close login">X</button>
+      <h2>Account</h2>
+      <p id="authState">Guest mode (login optional)</p>
+      <input id="authName" type="text" placeholder="Display name (for sign up)" maxlength="24" autocomplete="nickname" />
+      <input id="authEmail" type="email" placeholder="Email" maxlength="120" autocomplete="email" />
+      <input id="authPassword" type="password" placeholder="Password" minlength="8" maxlength="128" autocomplete="current-password" />
+      <div class="auth-actions">
+        <button id="emailLoginBtn">Log in with Email</button>
+        <button id="emailSignupBtn">Sign up with Email</button>
+        <button id="googleLoginBtn">Sign in with Google</button>
+        <button id="logoutBtn" disabled>Sign out</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="auth-modal hidden" id="roomModal">
+    <div class="auth-card">
+      <button class="close-btn" id="closeRoomBtn" aria-label="Close rooms">X</button>
+      <h2>Private Room</h2>
+      <p id="roomStatus">Create or join a room to race together.</p>
+      <div class="auth-actions">
+        <label for="roomListSelect">Available rooms</label>
+        <select id="roomListSelect"></select>
+        <input id="roomCodeInput" type="text" placeholder="Room code" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false" pattern="[A-Z2-9]{5}" />
+        <button id="roomCreateBtn">Create Room</button>
+        <button id="roomJoinBtn">Join Room</button>
+        <button id="roomStartBtn" disabled>Start Race (Owner)</button>
+        <button id="roomLeaveBtn" disabled>Leave Room</button>
+      </div>
+      <p id="roomCodeDisplay"></p>
+    </div>
+  </section>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
+
+
+
+
+===== FILE: issues.html =====
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+  />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta http-equiv="refresh" content="0; url=https://johart2030.github.io/issues-page/issues-page.html" />
+  <title>Wave Dash Issues</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <section class="hud">
+      <h1>Redirecting To Issues Page</h1>
+      <p class="hint">
+        If you are not redirected automatically,
+        <a class="issues-link" href="https://johart2030.github.io/issues-page/issues-page.html" rel="noreferrer">open the issues page here</a>.
+      </p>
+    </section>
+  </main>
+</body>
+</html>
+
+
+===== FILE: NEW_FEATURE_LIST.md =====
+
+# Wave Dash Feature Roadmap
+
+This list keeps the original ideas, but organizes them by current status so it is easier to track what is already in the game and what still needs work.
+
+## Done
+
+1. Easy / Medium / Hard mode
+2. Playable on phone / mobile
+3. Show total online players live
+4. Hovering over the online count shows who is online
+5. Custom maps do not give points
+6. Garage / shop preview so you can see what you are buying or equipping
+7. Full-screen mode
+8. Issues page link
+9. Random music
+10. Public leaderboard visible to all players, including signed-out players
+11. Basic multiplayer player rendering:
+Other players show their sprite, trail, and color, and they are drawn slightly transparent.
+12. Dev-only sprite, trail, and color support
+13. Account button polish:
+Signed-in users show a profile image or initial.
+Signed-out users see a normal Login button.
+14. Keyboard support for `ArrowUp` and `W` in addition to `Space`
+15. Click counter and FPS counter
+16. Private room race starts use a shared synced start time
+17. Public room player X tracking now uses shared run progress instead of a mismatched fixed X position
+18. Multiplayer race/seed resets now clear shared visual state more consistently
+19. Remote multiplayer trails are smoother and stale trail visuals are cleaned up on resets/restarts
+
+## In Progress
+
+1. Fix multiplayer
+Private room race starts should be verified on multiple devices.
+Seed / obstacle consistency should be double-checked.
+Other player visibility can still be polished further.
+
+2. Level editor upgrades
+Add more editor controls like speed-related objects.
+Make the editor easier to use and closer to a real level editor flow.
+
+## Planned
+
+1. Ads
+Still being considered.
+
+2. Player levels / XP
+
+3. Add support for more input devices:
+Finish the rest of keyboard support and add Sayo device input.
+
+4. Achievements
+
+5. Cache the game for offline play
+
+6. Backgrounds to buy
+
+7. Death effects
+
+8. You can import a backround of your own if you pay 1000000 points, as well as a sprites, trails, and colors
+
+9.  Fix that when you open the login or rooms button the game doesn't do anything because when i hit w in the rooms trying to get in a room it will just move the wave guy instead of typing w
+
+10. Make the game screen fit any screen width without dead space
+
+11. Add banner ads on the sides for money $$
+
+12. I jhave a problem where on one computer my cins save but when i load back onto my other computer my score changes to what it was when i last used the second computer. 
+
+13. when all people die in a room it restarts
+
+14. fix trail of other players in multiplayer
+
+## Notes
+
+1. Multiplayer is the biggest remaining system and should stay the main focus until it feels fully stable.
+2. UI polish and progression expansion should come after multiplayer reliability.
+
+
+===== FILE: onetap.js =====
+
+import {
+  signInWithCredential,
+  GoogleAuthProvider,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+
+import { auth } from "./firebase-config.js";
+
+// ==============================
+// 🔥 GLOBAL CALLBACK (MUST BE FIRST)
+// ==============================
+window.handleCredentialResponse = (response) => {
+  const credential = GoogleAuthProvider.credential(response.credential);
+
+  signInWithCredential(auth, credential)
+    .then((user) => console.log("Signed in:", user.user))
+    .catch(console.error);
+};
+
+// ==============================
+// STATE CONTROL
+// ==============================
+let initialized = false;
+let promptRunning = false;
+let retryScheduled = false;
+
+// ==============================
+// SAFE ONE TAP
+// ==============================
+function showOneTap() {
+  // ❌ already signed in
+  if (auth.currentUser) return;
+
+  // ❌ google not ready → schedule ONE retry
+  if (!window.google?.accounts?.id) {
+    if (!retryScheduled) {
+      retryScheduled = true;
+      setTimeout(() => {
+        retryScheduled = false;
+        showOneTap();
+      }, 300);
+    }
+    return;
+  }
+
+  // ✅ initialize ONLY ONCE
+  if (!initialized) {
+    google.accounts.id.initialize({
+      client_id: "92140525618-gffm531n2kucvu82s3g4vanobdgp1cqa.apps.googleusercontent.com",
+      callback: window.handleCredentialResponse,
+      auto_select: true
+    });
+    initialized = true;
+  }
+
+  // ❌ prevent FedCM spam
+  if (promptRunning) return;
+
+  promptRunning = true;
+
+  google.accounts.id.prompt((notification) => {
+    promptRunning = false;
+
+    if (notification.isNotDisplayed()) {
+      console.log("Not displayed:", notification.getNotDisplayedReason());
+    }
+
+    if (notification.isSkippedMoment()) {
+      console.log("Skipped:", notification.getSkippedReason());
+    }
+  });
+}
+
+// ==============================
+// AUTH TRIGGER (ONLY ENTRY POINT)
+// ==============================
+onAuthStateChanged(auth, (user) => {
+  if (!user) {
+    showOneTap();
+  }
+});
+
+===== FILE: README.md =====
+
+# Wave Dash
+
+Small browser game inspired by Space Waves, with optional Google sign-in, progression points, and Firestore sync.
+
+## Run
+
+Serve the folder locally (recommended for Firebase auth):
+
+```powershell
+cd "c:\Users\johart2030\Documents\Ripoff Space Waves"
+py -m http.server 8080
+```
+
+Then open `http://localhost:8080`.
+
+## Firebase Login Setup
+
+1. Create a Firebase project.
+2. Enable **Authentication > Sign-in method > Google** and **Email/Password**.
+3. Add `localhost` to **Authentication > Settings > Authorized domains**.
+4. Confirm your config in `firebase-config.js`.
+5. Reload the page and use the **Login** button at the top-right of the game to sign up/log in with email or Google.
+
+You can always play as guest without signing in.
+
+## Data Behavior
+
+- Guest players: progress is stored locally in `localStorage`.
+- Signed-in players: profile auto-syncs to Firestore document `players/{uid}`.
+- On sign-in, local and cloud profiles are merged, then saved back to both local and Firestore.
+- You can disable cloud sync by setting `enableCloudSave = false` in `firebase-config.js`.
+
+## Progression
+
+- Each run converts score to points.
+- Use points in the in-game Garage to buy/equip sprites, trails, and colors.
+- Starter trail is a solid line by default.
+
+
+===== FILE: realtime_firestore_rules.txt =====
+
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "presence": {
+      ".read": true,
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.val() === null || (newData.hasChildren(['lastSeen']) && newData.child('lastSeen').isNumber() && (!newData.child('online').exists() || newData.child('online').isBoolean()))"
+      }
+    },
+    "rooms": {
+      ".read": true,
+      "$roomId": {
+        ".write": "auth != null && (($roomId === 'public') || (!data.exists() && newData.child('ownerId').val() === auth.uid) || (data.exists() && data.child('ownerId').val() === auth.uid))",
+        "ownerId": {
+          ".validate": "newData.val() === null || (newData.isString() && (!data.exists() ? newData.val() === auth.uid : newData.val() === data.val()))"
+        },
+        "createdAt": {
+          ".validate": "newData.val() === null || newData.isNumber()"
+        },
+        "seed": {
+          ".validate": "newData.val() === null || newData.isNumber()"
+        },
+        "difficulty": {
+          ".validate": "newData.val() === 'easy' || newData.val() === 'medium' || newData.val() === 'hard' || newData.val() === null"
+        },
+        "startAt": {
+          ".validate": "newData.val() === null || newData.isNumber()"
+        },
+        "raceId": {
+          ".validate": "newData.val() === null || newData.isNumber()"
+        },
+        "players": {
+          "$playerId": {
+            ".read": true,
+            ".write": "auth != null && auth.uid === $playerId",
+            ".validate": "newData.val() === null || (newData.hasChildren(['lastSeen']) && newData.child('lastSeen').isNumber() && (!newData.child('joinedAt').exists() || newData.child('joinedAt').isNumber()) && (!newData.child('x').exists() || newData.child('x').isNumber()) && (!newData.child('y').exists() || newData.child('y').isNumber()) && (!newData.child('vy').exists() || newData.child('vy').isNumber()) && (!newData.child('score').exists() || newData.child('score').isNumber()) && (!newData.child('clears').exists() || newData.child('clears').isNumber()) && (!newData.child('dist').exists() || newData.child('dist').isNumber()) && (!newData.child('sprite').exists() || newData.child('sprite').isString()) && (!newData.child('trail').exists() || newData.child('trail').isString()) && (!newData.child('color').exists() || newData.child('color').isString()) && (!newData.child('name').exists() || (newData.child('name').isString() && newData.child('name').val().length <= 40)))"
+          }
+        }
+      }
+    }
+  }
+}
+
+
+===== FILE: SECURITY.md =====
+
+# Security Notes
+
+Frontend hardening was applied in code, but Firebase security still depends on server-side rules and console settings.
+
+## Required Firebase Console Follow-Up
+
+1. Enable Firebase App Check for Authentication, Firestore, and Realtime Database.
+2. Restrict Authentication authorized domains to the exact production hosts you use.
+3. Use Firestore and Realtime Database rules that only allow a signed-in user to write their own profile/player state.
+4. Do not allow clients to overwrite global leaderboard scores for other users.
+5. Restrict room ownership updates so only the room owner can start/reset a private room.
+
+## Firestore Rule Shape
+
+```text
+match /players/{userId} {
+  allow read, write: if request.auth != null && request.auth.uid == userId;
+}
+
+match /leaderboard/{userId} {
+  allow read: if true;
+  allow write: if request.auth != null && request.auth.uid == userId;
+}
+```
+
+## Realtime Database Rule Shape
+
+```text
+rooms: {
+  "$roomId": {
+    ".read": true,
+    "players": {
+      "$playerId": {
+        ".write": "auth != null && auth.uid === $playerId"
+      }
+    }
+  }
+}
+```
+
+Adjust guest/public-room behavior carefully if you intentionally allow anonymous multiplayer IDs.
+
+
+===== FILE: styles.css =====
+
+:root {
+  --bg-a: #051018;
+  --bg-b: #10293e;
+  --line: #73f2ff;
+  --accent: #ffd166;
+  --danger: #ff5d73;
+  --panel: #07111bcc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: #eef8ff;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: radial-gradient(circle at 20% 10%, #204469 0%, var(--bg-b) 35%, var(--bg-a) 100%);
+  overscroll-behavior: none;
+}
+
+.app {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.hud {
+  background: var(--panel);
+  border: 1px solid #ffffff22;
+  border-radius: 14px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.4rem;
+}
+
+.stats {
+  display: flex;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
+}
+
+.auth {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+button {
+  border: 1px solid #ffffff33;
+  background: #0d1f30;
+  color: #f8fcff;
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+button,
+select,
+input,
+textarea {
+  font: inherit;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hint {
+  margin: 0.7rem 0 0;
+  opacity: 0.85;
+}
+
+.session-tools {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.tool-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.issues-link {
+  color: #eef8ff;
+  text-decoration: none;
+  border: 1px solid #ffffff33;
+  background: #0d1f30;
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+}
+
+.shop {
+  margin-top: 0.9rem;
+  border-top: 1px solid #ffffff1f;
+  padding-top: 0.8rem;
+}
+
+.shop h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+}
+
+.shop-preview {
+  margin-bottom: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid #ffffff1f;
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(115, 242, 255, 0.13), rgba(255, 209, 102, 0.08)),
+    rgba(6, 17, 28, 0.88);
+}
+
+.shop-preview-copy strong {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.96rem;
+}
+
+.shop-preview-copy p {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.82;
+}
+
+.shop-row {
+  display: grid;
+  grid-template-columns: 70px 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.45rem;
+}
+
+select {
+  border: 1px solid #ffffff33;
+  background: #0d1f30;
+  color: #f8fcff;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  min-height: 44px;
+}
+
+#shopMsg {
+  margin: 0.5rem 0 0;
+  min-height: 1.1rem;
+  opacity: 0.85;
+}
+
+.leaderboard {
+  margin-top: 0.9rem;
+  border-top: 1px solid #ffffff1f;
+  padding-top: 0.8rem;
+}
+
+.leaderboard h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.leaderboard ol {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.leaderboard li {
+  margin-bottom: 0.3rem;
+  font-size: 0.92rem;
+}
+
+.leaderboard-note {
+  margin: 0.5rem 0 0;
+  opacity: 0.7;
+  font-size: 0.85rem;
+}
+
+.site-version {
+  margin-top: 0.9rem;
+  border-top: 1px solid #ffffff1f;
+  padding-top: 0.8rem;
+}
+
+.site-version h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.ad-panel {
+  margin-top: 0.9rem;
+  border-top: 1px solid #ffffff1f;
+  padding-top: 0.8rem;
+}
+
+.ad-panel h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.ad-panel p {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 209, 102, 0.18), rgba(115, 242, 255, 0.1));
+  border: 1px solid #ffffff1f;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+#versionText {
+  margin: 0;
+  font-size: 0.95rem;
+  opacity: 0.85;
+}
+
+.editor-toggle {
+  margin-top: 0.9rem;
+}
+
+.editor.hidden {
+  display: none;
+}
+
+.editor {
+  margin-top: 0.9rem;
+  border-top: 1px solid #ffffff1f;
+  padding-top: 0.8rem;
+}
+
+.editor h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.editor-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.editor-row label {
+  min-width: 70px;
+}
+
+.editor-row input,
+.editor-row textarea {
+  border: 1px solid #ffffff33;
+  background: #0d1f30;
+  color: #f8fcff;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+}
+
+#editorData {
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+}
+
+#editorMsg {
+  margin: 0.5rem 0 0;
+  opacity: 0.85;
+}
+
+.game-wrap {
+  --edge-bleed: 10px;
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #ffffff22;
+  box-shadow: 0 10px 35px #00000088;
+  background: #07131f;
+}
+
+canvas {
+  display: block;
+  width: calc(100% + (var(--edge-bleed) * 2));
+  max-width: none;
+  margin: calc(var(--edge-bleed) * -1);
+  height: auto;
+  background: linear-gradient(180deg, #0f2e49 0%, #07131f 100%);
+  touch-action: none;
+}
+
+.game-wrap.is-fullscreen {
+  --edge-bleed: 18px;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.game-wrap.is-fullscreen canvas {
+  width: calc(100vw + (var(--edge-bleed) * 2));
+  height: calc(100vh + (var(--edge-bleed) * 2));
+  margin: calc(var(--edge-bleed) * -1);
+}
+
+.game-wrap.is-fullscreen .game-top {
+  top: max(0.7rem, env(safe-area-inset-top));
+  left: max(0.7rem, env(safe-area-inset-left));
+  right: max(0.7rem, env(safe-area-inset-right));
+}
+
+.game-wrap.is-fullscreen .mobile-fly-btn {
+  right: max(0.8rem, env(safe-area-inset-right));
+  bottom: max(0.8rem, env(safe-area-inset-bottom));
+}
+
+.game-top {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
+  right: 0.7rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.game-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: #051018bb;
+  border: 1px solid #ffffff24;
+  border-radius: 10px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.92rem;
+  pointer-events: auto;
+}
+
+#openAuthBtn {
+  pointer-events: auto;
+}
+
+.account-btn {
+  min-width: 92px;
+  justify-content: center;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.account-btn.account-avatar {
+  min-width: 44px;
+  width: 44px;
+  padding: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  font-weight: 700;
+  text-transform: uppercase;
+  background-color: #17324a;
+  box-shadow: 0 0 0 1px #ffffff33;
+}
+
+.account-btn.account-avatar:hover {
+  transform: translateY(-1px);
+}
+
+#onlineStat {
+  cursor: pointer;
+}
+
+.online-stat {
+  appearance: none;
+  border: 1px solid #ffffff1f;
+  background: rgba(255, 255, 255, 0.02);
+  color: inherit;
+  text-align: left;
+  padding: 0.28rem 0.4rem;
+  min-height: 0;
+  border-radius: 8px;
+}
+
+.online-stat:hover,
+.online-stat:focus-visible {
+  border-color: #73f2ff66;
+  background: rgba(115, 242, 255, 0.08);
+  outline: none;
+}
+
+.online-popover {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  min-width: 200px;
+  max-width: 280px;
+  background: rgba(5, 16, 24, 0.96);
+  border: 1px solid #ffffff26;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+  font-size: 0.84rem;
+  line-height: 1.4;
+  z-index: 5;
+}
+
+.online-popover.hidden {
+  display: none;
+}
+
+.game-mp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-end;
+  pointer-events: auto;
+}
+
+.game-mp-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+#mpStatus {
+  font-size: 0.82rem;
+  background: #051018bb;
+  border: 1px solid #ffffff24;
+  border-radius: 10px;
+  padding: 0.35rem 0.55rem;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  background: #00000044;
+  z-index: 2;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.one-tap-debug {
+  position: absolute;
+  left: 0.85rem;
+  bottom: 0.85rem;
+  z-index: 4;
+  max-width: 280px;
+  padding: 0.45rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid #ffffff24;
+  background: rgba(5, 16, 24, 0.88);
+  color: #9fe8ff;
+  font-size: 0.8rem;
+  letter-spacing: 0.01em;
+  backdrop-filter: blur(10px);
+}
+
+.one-tap-debug.hidden {
+  display: none;
+}
+
+.one-tap-fallback {
+  position: absolute;
+  right: 0.85rem;
+  bottom: 0.85rem;
+  z-index: 4;
+  max-width: 280px;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid #ffffff24;
+  background: rgba(5, 16, 24, 0.92);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+.one-tap-fallback.hidden {
+  display: none;
+}
+
+.one-tap-fallback p {
+  margin: 0 0 0.55rem;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+#oneTapFallbackBtn {
+  width: 100%;
+  background: linear-gradient(135deg, #2d7df6, #6ab7ff);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.overlay h2 {
+  color: var(--accent);
+  margin-bottom: 0.35rem;
+}
+
+.mobile-fly-btn {
+  display: none;
+}
+
+.auth-modal {
+  position: fixed;
+  inset: 0;
+  background: #00000070;
+  display: grid;
+  place-items: center;
+  z-index: 10;
+  padding: 1rem;
+}
+
+.auth-modal.hidden {
+  display: none;
+}
+
+.auth-card {
+  width: min(480px, 100%);
+  background: #07111bf5;
+  border: 1px solid #ffffff2a;
+  border-radius: 12px;
+  padding: 1rem;
+  position: relative;
+}
+
+.auth-card h2 {
+  margin: 0 0 0.5rem;
+}
+
+.auth-card input {
+  width: 100%;
+  margin-bottom: 0.5rem;
+  border: 1px solid #ffffff33;
+  background: #0d1f30;
+  color: #f8fcff;
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  min-height: 44px;
+}
+
+.auth-actions {
+  display: grid;
+  gap: 0.45rem;
+}
+
+#roomListSelect {
+  width: 100%;
+}
+
+.close-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  padding: 0.35rem 0.6rem;
+}
+
+#roomCodeDisplay {
+  margin: 0.6rem 0 0;
+  font-size: 0.95rem;
+  opacity: 0.85;
+}
+
+@media (max-width: 640px) {
+  body {
+    overflow-x: hidden;
+  }
+
+  .app {
+    padding: 0.65rem;
+  }
+
+  .hud {
+    padding: 0.85rem;
+  }
+
+  .shop-row {
+    grid-template-columns: 1fr;
+  }
+
+  .tool-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tool-row > * {
+    width: 100%;
+  }
+
+  .game-top {
+    position: static;
+    display: grid;
+    gap: 0.6rem;
+    padding: 0.65rem;
+    background: rgba(5, 16, 24, 0.82);
+  }
+
+  .game-stats {
+    font-size: 0.82rem;
+  }
+
+  .auth-card {
+    max-height: min(86vh, 720px);
+    overflow-y: auto;
+    padding-bottom: 1.15rem;
+  }
+
+  .game-mp {
+    align-items: stretch;
+  }
+
+  .game-mp-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .game-mp-actions button {
+    width: 100%;
+  }
+
+  .overlay {
+    padding: 1rem;
+  }
+
+  .mobile-fly-btn {
+    display: block;
+    position: absolute;
+    right: 0.8rem;
+    bottom: 0.8rem;
+    z-index: 4;
+    min-width: 120px;
+    min-height: 56px;
+    padding: 0.8rem 1rem;
+    background: rgba(13, 31, 48, 0.88);
+    backdrop-filter: blur(8px);
+  }
 }
 
 
