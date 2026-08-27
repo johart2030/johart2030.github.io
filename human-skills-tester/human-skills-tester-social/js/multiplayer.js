@@ -25,21 +25,99 @@ async function createRoom(type='reaction',isPublic=false){
   }
   throw new Error('Could not reserve a room code. Try again.');
 }
-async function joinRoom(rawId){
-  if(!await requirePlayer())return;
-  const id=String(rawId||'').trim().toUpperCase();
-  if(!/^[A-Z0-9]{6}$/.test(id))throw new Error('Enter a valid six-character room code.');
-  message('Joining room…');
-  const result=await runRTDBTransaction(ref(rtdb,`rooms/${id}`),room=>{
-    if(!room)return;
-    const players=room.players||{};
-    if(players[user.uid]){players[user.uid]={...players[user.uid],name:profile.displayName,connected:true,lastSeen:Date.now()+serverOffset};room.players=players;return room}
-    if(room.status!=='waiting')return;
-    players[user.uid]={name:profile.displayName,ready:false,finished:false,score:0,connected:true,joinedAt:Date.now()+serverOffset,lastSeen:Date.now()+serverOffset};room.players=players;return room;
+
+async function joinRoom(rawId) {
+  if (!await requirePlayer()) {
+    return;
+  }
+
+  const id = String(rawId || "")
+    .trim()
+    .toUpperCase();
+
+  if (!/^[A-Z0-9]{6}$/.test(id)) {
+    throw new Error(
+      "Enter a valid six-character room code."
+    );
+  }
+
+  message("Joining room…");
+
+  const roomRef = ref(rtdb, `rooms/${id}`);
+  const roomSnapshot = await get(roomRef);
+
+  if (!roomSnapshot.exists()) {
+    throw new Error("Room not found or expired.");
+  }
+
+  const room = roomSnapshot.val();
+
+  if (room.status !== "waiting") {
+    throw new Error(
+      "This match has already started."
+    );
+  }
+
+  const playerRef = ref(
+    rtdb,
+    `rooms/${id}/players/${user.uid}`
+  );
+
+  const oldPlayer = room.players?.[user.uid];
+
+  await set(playerRef, {
+    name: profile.displayName,
+    ready: oldPlayer?.ready ?? false,
+    finished: false,
+    score: 0,
+    connected: true,
+    joinedAt:
+      oldPlayer?.joinedAt ??
+      rtdbTimestamp(),
+    lastSeen: rtdbTimestamp()
   });
-  if(!result.committed){const check=await get(ref(rtdb,`rooms/${id}`));if(!check.exists())throw new Error('Room not found or expired.');const r=check.val();if(r.status!=='waiting')throw new Error('This match has already started.');throw new Error('This room is not accepting new players.');}
-  roomId=id;localStorage.setItem('hst_active_room',id);await remove(ref(rtdb,`openRooms/${id}`)).catch(()=>{});watchRoom(id);
+
+  const verificationSnapshot =
+    await get(roomRef);
+
+  if (!verificationSnapshot.exists()) {
+    throw new Error(
+      "The room closed while you were joining."
+    );
+  }
+
+  const verifiedRoom =
+    verificationSnapshot.val();
+
+  if (!verifiedRoom.players?.[user.uid]) {
+    throw new Error(
+      "Your player slot could not be created."
+    );
+  }
+
+  if (
+    verifiedRoom.status !== "waiting" &&
+    verifiedRoom.status !== "countdown"
+  ) {
+    throw new Error(
+      "The match started before you finished joining."
+    );
+  }
+
+  roomId = id;
+
+  localStorage.setItem(
+    "hst_active_room",
+    id
+  );
+
+  await remove(
+    ref(rtdb, `openRooms/${id}`)
+  ).catch(() => {});
+
+  await watchRoom(id);
 }
+
 async function attachConnection(id){
   const playerRef=ref(rtdb,`rooms/${id}/players/${user.uid}`);
   await onDisconnect(playerRef).update({connected:false,lastSeen:rtdbTimestamp()});
