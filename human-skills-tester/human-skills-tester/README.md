@@ -1,14 +1,16 @@
-# Human Skills Tester full release
+# Human Skills Tester - fixed Firebase release
 
-Includes single-player tests, Firebase Authentication, Google sign-in and One Tap, unique display names, Firestore cloud scores, PWA installation, presence, private rooms, public matchmaking, and real-time Reaction, Math, and Typing battles.
+## Fixes in this build
+- Realtime Database timestamps are now invoked correctly.
+- Existing Firestore scores download into local score state and refresh every game and the 0/7 dashboard.
+- New local bests upload to Firestore.
+- Google Identity Services button and One Tap initialize after the library loads, with a normal Google sign-in fallback.
+- Multiplayer score state no longer uses null fields that Realtime Database deletes.
+- Mobile navigation, forms, room UI, game panels, and PWA cache were polished.
 
-## Required deployment
-
-1. Confirm `databaseURL` in `js/firebase.js`. If Firebase Console shows a region-specific URL, replace the current value.
-2. Install Firebase CLI and sign in.
-3. Run `firebase deploy --only firestore:rules,database`.
-4. Upload the site to GitHub Pages, or run `firebase deploy --only hosting`.
-5. In Google Cloud OAuth credentials add `https://johart2030.github.io` as an authorized JavaScript origin.
-6. In Firebase Authentication authorized domains keep `johart2030.github.io`.
-
-Do not publish service-account keys or OAuth client secrets.
+## Required after uploading
+1. Deploy rules: `firebase deploy --only firestore:rules,database`
+2. Confirm the exact Realtime Database URL in `js/firebase.js`.
+3. Keep `johart2030.github.io` in Firebase Authentication authorized domains.
+4. Add `https://johart2030.github.io` as an authorized JavaScript origin for the Google OAuth web client.
+5. Remove the old installed PWA or hard refresh once. The service-worker cache name is now `hst-v3-fixed`.
