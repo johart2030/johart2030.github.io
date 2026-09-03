@@ -1,0 +1,17 @@
+rules_version = '2';
+service cloud.firestore { match /databases/{database}/documents {
+ function permanent(){return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';}
+ function owner(uid){return permanent() && request.auth.uid == uid;}
+ function member(){return permanent() && request.auth.uid in resource.data.members;}
+ match /users/{uid} { allow read,create,update,delete: if owner(uid); match /scores/{test}{allow read,write:if owner(uid);} }
+ match /usernames/{key}{allow read:if true;allow create:if permanent()&&request.resource.data.uid==request.auth.uid;allow update,delete:if permanent()&&resource.data.uid==request.auth.uid;}
+ match /publicProfiles/{uid}{allow read:if true;allow create,update,delete:if owner(uid);}
+ match /leaderboards/{test}/entries/{uid}{allow read:if true;allow create,update,delete:if owner(uid);}
+ match /friendships/{id}{
+  allow read: if member();
+  allow create: if permanent() && request.resource.data.status=='pending' && request.resource.data.requestedBy==request.auth.uid && request.auth.uid in request.resource.data.members && request.resource.data.members.size()==2;
+  allow update: if permanent() && request.auth.uid in resource.data.members && request.resource.data.members==resource.data.members && (request.resource.data.status=='accepted'||request.resource.data.status=='blocked'||request.resource.data.status=='pending');
+  allow delete: if member();
+ }
+ match /{document=**}{allow read,write:if false;}
+}}
