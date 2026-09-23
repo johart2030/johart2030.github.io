@@ -18,6 +18,11 @@ service cloud.firestore {
       allow read: if owner(uid) || admin();
       allow update, delete: if false;
     }
+    // The Admin Console uses a collection-group query over `entries`.
+    // Collection-group queries need a recursive rule covering every matching path.
+    match /{path=**}/entries/{entryId} {
+      allow read: if admin();
+    }
     match /usernames/{key} {
       allow read: if true;
       allow create: if permanent() && request.resource.data.uid == request.auth.uid;

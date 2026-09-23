@@ -10,6 +10,7 @@ New in Terra:
 - Pi personal bests, score sync, and a Pi Memory leaderboard.
 - Per-game, per-user Firebase audit logs for tab switches while an active game is in progress: `gameLogs/{game}/users/{uid}/entries/{entryId}`.
 - An access-controlled Admin Console at `admin.html` for reviewing the latest users, scores, and tab-switch logs.
+- A recursive administrator-only rule for the Admin Console's Firebase collection-group log query.
 - A unique PWA cache name, so Terra does not reuse stale v10 assets.
 - A fix for the shared home-score renderer, which previously attempted to access home-only elements on every page.
 
@@ -17,7 +18,7 @@ New in Terra:
 
 1. Deploy this folder as its own site path or replace an existing site build.
 2. Deploy the included Firebase rules and collection-group index when using accounts, logs, friends, multiplayer, or cloud leaderboards: `firebase deploy --only firestore:rules,firestore:indexes,database`.
-3. Reload or reinstall the PWA after deploy. The Terra cache name is `hst-terra-v2`.
+3. Reload or reinstall the PWA after deploy. The Terra cache name is `hst-terra-v3`.
 
 ## Administrator access
 

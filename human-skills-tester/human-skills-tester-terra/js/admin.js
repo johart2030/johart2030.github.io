@@ -68,22 +68,26 @@ async function inspectUser(user) {
 async function loadAdminData() {
   status.textContent = 'Loading users and game logs…';
   try {
-    const [userSnapshot, logSnapshot] = await Promise.all([
-      getDocs(query(collection(db, 'users'), limit(200))),
-      getDocs(query(collectionGroup(db, 'entries'), where('type', '==', 'tab_hidden'), limit(200)))
-    ]);
+    const userSnapshot = await getDocs(query(collection(db, 'users'), limit(200)));
     users = userSnapshot.docs.map(snapshot => ({ id: snapshot.id, ...snapshot.data() })).sort((a, b) => String(a.displayName || '').localeCompare(String(b.displayName || '')));
-    logs = logSnapshot.docs.map(snapshot => {
-      const path = snapshot.ref.path.split('/');
-      return { id: snapshot.id, game: path[1], uid: path[3], ...snapshot.data() };
-    }).sort((a, b) => (b.occurredAt?.seconds || 0) - (a.occurredAt?.seconds || 0));
     document.getElementById('userCount').textContent = String(users.length);
-    document.getElementById('logCount').textContent = String(logs.length);
     renderUsers();
-    renderLogs();
-    status.textContent = 'Administrator access verified. Data shown is limited to the latest 200 users and logs.';
+    try {
+      const logSnapshot = await getDocs(query(collectionGroup(db, 'entries'), where('type', '==', 'tab_hidden'), limit(200)));
+      logs = logSnapshot.docs.map(snapshot => {
+        const path = snapshot.ref.path.split('/');
+        return { id: snapshot.id, game: path[1], uid: path[3], ...snapshot.data() };
+      }).sort((a, b) => (b.occurredAt?.seconds || 0) - (a.occurredAt?.seconds || 0));
+      document.getElementById('logCount').textContent = String(logs.length);
+      renderLogs();
+      status.textContent = 'Administrator access verified. Data shown is limited to the latest 200 users and logs.';
+    } catch (error) {
+      logs = [];
+      renderLogs();
+      status.textContent = `Users loaded, but the game-log query is unavailable: ${error.message}`;
+    }
   } catch (error) {
-    status.textContent = `Could not load administrator data: ${error.message}`;
+    status.textContent = `Could not load users: ${error.message}`;
   }
 }
 
