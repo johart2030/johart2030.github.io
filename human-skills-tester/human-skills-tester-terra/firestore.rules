@@ -3,17 +3,27 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function permanent() { return request.auth != null && request.auth.token.firebase.sign_in_provider != "anonymous"; }
     function owner(uid) { return permanent() && request.auth.uid == uid; }
+    function admin() { return permanent() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin"; }
     function participant(data) { return permanent() && request.auth.uid in data.members; }
+
     match /users/{uid} {
-      allow read, create, update, delete: if owner(uid);
-      match /scores/{test} { allow read, create, update, delete: if owner(uid); }
+      allow read: if owner(uid) || admin();
+      allow create: if owner(uid) && request.resource.data.role == "user";
+      allow update: if admin() || (owner(uid) && ((!('role' in resource.data) && (!('role' in request.resource.data) || request.resource.data.role == "user")) || request.resource.data.role == resource.data.role));
+      allow delete: if owner(uid) || admin();
+      match /scores/{test} { allow read: if owner(uid) || admin(); allow create, update, delete: if owner(uid); }
+    }
+    match /gameLogs/{game}/users/{uid}/entries/{entryId} {
+      allow create: if owner(uid);
+      allow read: if owner(uid) || admin();
+      allow update, delete: if false;
     }
     match /usernames/{key} {
       allow read: if true;
       allow create: if permanent() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if permanent() && resource.data.uid == request.auth.uid;
     }
-    match /publicProfiles/{uid} { allow read: if true; allow create, update, delete: if owner(uid); }
+    match /publicProfiles/{uid} { allow read: if true; allow create, update, delete: if owner(uid) || admin(); }
     match /leaderboards/{test}/entries/{uid} { allow read: if true; allow create, update, delete: if owner(uid); }
     match /friendships/{id} {
       allow get: if participant(resource.data);

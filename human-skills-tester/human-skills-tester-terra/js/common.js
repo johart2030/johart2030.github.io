@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('[data-protected-prompt]').forEach(element => {
     ['copy', 'cut', 'contextmenu', 'dragstart', 'selectstart'].forEach(type => element.addEventListener(type, event => event.preventDefault()));
   });
+  if (new Set(['number', 'pi', 'typing', 'reaction', 'aim', 'sequence', 'visual', 'math']).has(page)) import('./game-integrity.js').catch(error => console.warn('Game integrity unavailable', error));
   renderHomeScores();
 });
 
