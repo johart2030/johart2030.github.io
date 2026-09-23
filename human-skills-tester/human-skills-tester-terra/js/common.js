@@ -38,6 +38,15 @@ const HST = {
     element.addEventListener('keydown', event => {
       if ((event.ctrlKey || event.metaKey) && ['c', 'v', 'x'].includes(event.key.toLowerCase())) event.preventDefault();
     });
+  },
+  logGameEvent(type, details = {}) {
+    const event = { type, details, page: document.body.dataset.page, recordedAt: Date.now() };
+    if (!window.__hstGameIntegrityReady) {
+      const queue = window.__hstPendingGameEvents || [];
+      queue.push(event);
+      window.__hstPendingGameEvents = queue.slice(-40);
+    }
+    window.dispatchEvent(new CustomEvent('hst:game-event', { detail: event }));
   }
 };
 

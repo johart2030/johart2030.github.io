@@ -8,7 +8,7 @@ New in Terra:
 - Protected Pi and Typing Test prompts, with paste, drop, cut, and copy shortcuts rejected in the manual-entry fields.
 - Protected Number Memory prompts and manual-only number entry.
 - Pi personal bests, score sync, and a Pi Memory leaderboard.
-- Per-game, per-user Firebase audit logs for tab switches while an active game is in progress: `gameLogs/{game}/users/{uid}/entries/{entryId}`.
+- Per-game, per-user Firebase audit logs for game starts, completed rounds, results, and tab switches while an active game is in progress: `gameLogs/{game}/users/{uid}/entries/{entryId}`. The Admin Console intentionally shows only tab-switch records, using `usernameKey` rather than raw UIDs.
 - An access-controlled Admin Console at `admin.html` for reviewing the latest users, scores, and tab-switch logs.
 - A recursive administrator-only rule for the Admin Console's Firebase collection-group log query.
 - A unique PWA cache name, so Terra does not reuse stale v10 assets.
@@ -18,7 +18,7 @@ New in Terra:
 
 1. Deploy this folder as its own site path or replace an existing site build.
 2. Deploy the included Firebase rules and collection-group index when using accounts, logs, friends, multiplayer, or cloud leaderboards: `firebase deploy --only firestore:rules,firestore:indexes,database`.
-3. Reload or reinstall the PWA after deploy. The Terra cache name is `hst-terra-v3`.
+3. Reload or reinstall the PWA after deploy. The Terra cache name is `hst-terra-v5`.
 
 ## Administrator access
 

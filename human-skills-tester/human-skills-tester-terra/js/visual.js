@@ -1,2 +1,17 @@
-const grid=document.getElementById('grid'),msg=document.getElementById('message'),startBtn=document.getElementById('start'),best=document.getElementById('best');let level=1,size=3,answers=new Set(),chosen=new Set(),accept=false;function showBest(){best.textContent=HST.get('visual',0)}function build(){grid.innerHTML='';grid.style.gridTemplateColumns=`repeat(${size},1fr)`;for(let i=0;i<size*size;i++){const b=document.createElement('button');b.className='visual-cell';b.dataset.i=i;b.setAttribute('aria-label',`Tile ${i+1}`);b.onclick=pick;grid.appendChild(b);}}function round(){size=Math.min(3+Math.floor((level-1)/3),7);build();answers=new Set();chosen=new Set();const count=Math.min(level+2,size*size-1);while(answers.size<count)answers.add(Math.floor(Math.random()*size*size));answers.forEach(i=>grid.children[i].classList.add('shown'));msg.textContent=`Level ${level}: remember ${count} tiles`;setTimeout(()=>{[...grid.children].forEach(c=>c.classList.remove('shown'));accept=true;msg.textContent='Select the tiles you remember';},1200+level*80)}function pick(){if(!accept)return;const i=Number(this.dataset.i);if(answers.has(i)){this.classList.add('selected');chosen.add(i);if(chosen.size===answers.size){accept=false;HST.setBest('visual',level);showBest();level++;msg.textContent='Correct';setTimeout(round,700)}}else{this.classList.add('wrong');accept=false;answers.forEach(n=>grid.children[n].classList.add('shown'));msg.textContent=`Wrong tile. You reached level ${level}.`;startBtn.hidden=false;startBtn.textContent='Try again';}}startBtn.onclick=()=>{level=1;startBtn.hidden=true;round()};build();showBest();
-window.addEventListener('hst:scores-changed',showBest);
+const grid = document.getElementById('grid');
+const msg = document.getElementById('message');
+const startBtn = document.getElementById('start');
+const best = document.getElementById('best');
+let level = 1;
+let size = 3;
+let answers = new Set();
+let chosen = new Set();
+let accepting = false;
+function showBest() { best.textContent = HST.get('visual', 0); }
+function build() { grid.innerHTML = ''; grid.style.gridTemplateColumns = `repeat(${size},1fr)`; for (let index = 0; index < size * size; index += 1) { const button = document.createElement('button'); button.className = 'visual-cell'; button.dataset.i = index; button.setAttribute('aria-label', `Tile ${index + 1}`); button.onclick = pick; grid.appendChild(button); } }
+function round() { size = Math.min(3 + Math.floor((level - 1) / 3), 7); build(); answers = new Set(); chosen = new Set(); const count = Math.min(level + 2, size * size - 1); while (answers.size < count) answers.add(Math.floor(Math.random() * size * size)); answers.forEach(index => grid.children[index].classList.add('shown')); msg.textContent = `Level ${level}: remember ${count} tiles`; setTimeout(() => { [...grid.children].forEach(cell => cell.classList.remove('shown')); accepting = true; msg.textContent = 'Select the tiles you remember'; }, 1200 + level * 80); }
+function pick() { if (!accepting) return; const index = Number(this.dataset.i); if (answers.has(index)) { this.classList.add('selected'); chosen.add(index); if (chosen.size === answers.size) { accepting = false; HST.setBest('visual', level); HST.logGameEvent('round_completed', { level }); showBest(); level += 1; msg.textContent = 'Correct'; setTimeout(round, 700); } } else { this.classList.add('wrong'); accepting = false; answers.forEach(answer => grid.children[answer].classList.add('shown')); msg.textContent = `Wrong tile. You reached level ${level}.`; HST.logGameEvent('game_finished', { result: 'incorrect', level }); startBtn.hidden = false; startBtn.textContent = 'Try again'; } }
+startBtn.onclick = () => { level = 1; startBtn.hidden = true; HST.logGameEvent('game_started'); round(); };
+build();
+showBest();
+window.addEventListener('hst:scores-changed', showBest);

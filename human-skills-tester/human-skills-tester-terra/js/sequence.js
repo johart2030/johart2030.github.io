@@ -1,2 +1,15 @@
-const pads=[...document.querySelectorAll('.sequence-pad')],msg=document.getElementById('message'),startBtn=document.getElementById('start'),best=document.getElementById('best');let seq=[],pos=0,accept=false;const sleep=ms=>new Promise(r=>setTimeout(r,ms));function showBest(){best.textContent=HST.get('sequence',0)}async function show(){accept=false;msg.textContent=`Level ${seq.length}: watch`;await sleep(500);for(const n of seq){pads[n].classList.add('flash');await sleep(420);pads[n].classList.remove('flash');await sleep(180)}pos=0;accept=true;msg.textContent='Your turn';}function next(){seq.push(Math.floor(Math.random()*4));show()}startBtn.onclick=()=>{seq=[];startBtn.hidden=true;next()};pads.forEach((p,i)=>p.onclick=()=>{if(!accept)return;p.classList.add('flash');setTimeout(()=>p.classList.remove('flash'),140);if(i!==seq[pos]){accept=false;msg.textContent=`Wrong pad. You reached level ${seq.length}.`;startBtn.hidden=false;startBtn.textContent='Try again';return}pos++;if(pos===seq.length){accept=false;HST.setBest('sequence',seq.length);showBest();msg.textContent='Correct';setTimeout(next,700)}});showBest();
-window.addEventListener('hst:scores-changed',showBest);
+const pads = [...document.querySelectorAll('.sequence-pad')];
+const msg = document.getElementById('message');
+const startBtn = document.getElementById('start');
+const best = document.getElementById('best');
+let sequence = [];
+let position = 0;
+let accepting = false;
+const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+function showBest() { best.textContent = HST.get('sequence', 0); }
+async function show() { accepting = false; msg.textContent = `Level ${sequence.length}: watch`; await sleep(500); for (const pad of sequence) { pads[pad].classList.add('flash'); await sleep(420); pads[pad].classList.remove('flash'); await sleep(180); } position = 0; accepting = true; msg.textContent = 'Your turn'; }
+function next() { sequence.push(Math.floor(Math.random() * 4)); show(); }
+startBtn.onclick = () => { sequence = []; startBtn.hidden = true; HST.logGameEvent('game_started'); next(); };
+pads.forEach((pad, index) => pad.onclick = () => { if (!accepting) return; pad.classList.add('flash'); setTimeout(() => pad.classList.remove('flash'), 140); if (index !== sequence[position]) { accepting = false; msg.textContent = `Wrong pad. You reached level ${sequence.length}.`; HST.logGameEvent('game_finished', { result: 'incorrect', level: sequence.length }); startBtn.hidden = false; startBtn.textContent = 'Try again'; return; } position += 1; if (position === sequence.length) { accepting = false; HST.setBest('sequence', sequence.length); HST.logGameEvent('round_completed', { level: sequence.length }); showBest(); msg.textContent = 'Correct'; setTimeout(next, 700); } });
+showBest();
+window.addEventListener('hst:scores-changed', showBest);

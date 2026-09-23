@@ -4,41 +4,40 @@ const folders = { number: 'numbermemory', pi: 'pimemory', typing: 'typing', reac
 const page = document.body.dataset.page;
 const folder = folders[page];
 let user = null;
-let logging = false;
+let loggingTabSwitch = false;
 
 onAuthStateChanged(auth, nextUser => { user = nextUser && !nextUser.isAnonymous ? nextUser : null; });
 
 function gameIsActive() {
   const bySelector = selector => Boolean(document.querySelector(selector));
   const checks = {
-    number: () => bySelector('#start[hidden]'),
-    pi: () => bySelector('#start[hidden]'),
-    typing: () => bySelector('#start[hidden]'),
-    reaction: () => bySelector('#zone.waiting, #zone.ready'),
-    aim: () => { const target = document.getElementById('target'); return Boolean(target && !target.hidden); },
-    sequence: () => bySelector('#start[hidden]'),
-    visual: () => bySelector('#start[hidden]'),
-    math: () => bySelector('#form:not([hidden])')
+    number: () => bySelector('#start[hidden]'), pi: () => bySelector('#start[hidden]'), typing: () => bySelector('#start[hidden]'),
+    reaction: () => bySelector('#zone.waiting, #zone.ready'), aim: () => { const target = document.getElementById('target'); return Boolean(target && !target.hidden); },
+    sequence: () => bySelector('#start[hidden]'), visual: () => bySelector('#start[hidden]'), math: () => bySelector('#form:not([hidden])')
   };
   return Boolean(checks[page]?.());
 }
 
-async function logTabSwitch() {
-  if (!folder || !user || logging || !gameIsActive()) return;
-  logging = true;
+async function writeLog(type, details = {}) {
+  if (!folder || !user) return;
   try {
     await addDoc(collection(db, 'gameLogs', folder, 'users', user.uid, 'entries'), {
-      type: 'tab_hidden',
-      game: folder,
-      page,
-      sessionId: sessionStorage.getItem('hst_session_id') || null,
-      occurredAt: serverTimestamp()
+      type, game: folder, page, sessionId: sessionStorage.getItem('hst_session_id') || null,
+      usernameKey: window.hstProfile?.usernameKey || null,
+      displayName: window.hstProfile?.displayName || null,
+      details, occurredAt: serverTimestamp()
     });
-  } catch (error) {
-    console.warn('Game integrity log was not saved', error);
-  } finally {
-    logging = false;
-  }
+  } catch (error) { console.warn('Game audit log was not saved', error); }
 }
 
-document.addEventListener('visibilitychange', () => { if (document.hidden) void logTabSwitch(); });
+function recordGameEvent(event) { void writeLog(event.detail.type, event.detail.details || {}); }
+window.__hstGameIntegrityReady = true;
+window.addEventListener('hst:game-event', recordGameEvent);
+(window.__hstPendingGameEvents || []).forEach(event => recordGameEvent({ detail: event }));
+window.__hstPendingGameEvents = [];
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden || loggingTabSwitch || !gameIsActive()) return;
+  loggingTabSwitch = true;
+  writeLog('tab_hidden').finally(() => { loggingTabSwitch = false; });
+});

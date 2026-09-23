@@ -30,6 +30,7 @@ function updateStats() {
     clearInterval(timerId);
     input.disabled = true;
     HST.setBest('typing', wpm);
+    HST.logGameEvent('game_finished', { result: 'completed', wpm, accuracy });
     showBest();
     startBtn.hidden = false;
     startBtn.textContent = 'New passage';
@@ -47,6 +48,7 @@ function startTest() {
   wpmEl.textContent = '0 WPM';
   accEl.textContent = '100%';
   startBtn.hidden = true;
+  HST.logGameEvent('game_started', { characters: text.length });
 }
 startBtn.addEventListener('click', startTest);
 input.addEventListener('input', () => {

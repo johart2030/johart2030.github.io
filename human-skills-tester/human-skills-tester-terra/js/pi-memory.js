@@ -43,7 +43,7 @@ function beginRound() {
     answer.focus();
   }, revealFor);
 }
-function startGame() { clearTimeout(revealTimer); level = 4; reached = 0; beginRound(); }
+function startGame() { clearTimeout(revealTimer); level = 4; reached = 0; HST.logGameEvent('game_started', { characters: level }); beginRound(); }
 function completeDeck() {
   clearTimeout(revealTimer);
   target = PI_DIGITS;
@@ -52,6 +52,7 @@ function completeDeck() {
   form.hidden = true;
   answer.disabled = true;
   HST.setBest('pi', PI_DIGITS.length);
+  HST.logGameEvent('game_finished', { result: 'completed_deck', characters: PI_DIGITS.length });
   showBest();
   messageEl.textContent = `Incredible — you recalled all ${PI_DIGITS.length} available characters in this challenge.`;
   startButton.hidden = false;
@@ -61,6 +62,7 @@ function finishGame() {
   clearTimeout(revealTimer);
   displayDigits(target);
   showBest();
+  HST.logGameEvent('game_finished', { result: 'incorrect', reachedCharacters: reached, targetCharacters: level });
   answer.disabled = true;
   form.hidden = true;
   messageEl.textContent = `Close! You reached ${reached} character${reached === 1 ? '' : 's'}. The correct ${level}-character sequence is shown above.`;
@@ -75,6 +77,7 @@ form.addEventListener('submit', event => {
   if (typed === target) {
     HST.setBest('pi', level);
     reached = level;
+    HST.logGameEvent('round_completed', { characters: level });
     showBest();
     level += 1;
     messageEl.textContent = 'Correct! Adding one more character…';
