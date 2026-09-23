@@ -27,7 +27,7 @@ async function logTabSwitch() {
   if (!folder || !user || logging || !gameIsActive()) return;
   logging = true;
   try {
-    await addDoc(collection(db, 'gameLogs', folder, 'users', user.uid.usernameKey, 'entries'), {
+    await addDoc(collection(db, 'gameLogs', folder, 'users', user.uid, 'entries'), {
       type: 'tab_hidden',
       game: folder,
       page,
