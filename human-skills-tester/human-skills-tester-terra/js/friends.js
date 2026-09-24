@@ -108,9 +108,14 @@ document.addEventListener('click', event => {
 async function sendRequest(uid, name) {
     if (!uid || uid === user.uid)
         throw new Error('Invalid friend request.');
-    const id = pair(user.uid, uid), existing = await getDoc(doc(db, 'friendships', id));
-    if (existing.exists())
+
+    const existing = relationships.find(x => x.members?.includes(uid));
+
+    if (existing)
         throw new Error('A friend request or friendship already exists.');
+
+    const id = pair(user.uid, uid);
+
     await setDoc(doc(db, 'friendships', id), {
         members: [user.uid, uid].sort(),
         names: {
@@ -122,6 +127,7 @@ async function sendRequest(uid, name) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
     });
+
     notice(`Friend request sent to ${name}.`);
     await refresh();
 }
