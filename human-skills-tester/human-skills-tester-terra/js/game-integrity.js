@@ -1,10 +1,11 @@
-import { auth, db, onAuthStateChanged, addDoc, collection, serverTimestamp } from './firebase.js';
+import { auth, db, onAuthStateChanged, addDoc, collection, serverTimestamp, startPerformanceTrace } from './firebase.js';
 
 const folders = { number: 'numbermemory', pi: 'pimemory', typing: 'typing', reaction: 'reaction', aim: 'aim', sequence: 'sequence', visual: 'visualmemory', math: 'math' };
 const page = document.body.dataset.page;
 const folder = folders[page];
 let user = null;
 let loggingTabSwitch = false;
+let gameTrace = null;
 
 onAuthStateChanged(auth, nextUser => { user = nextUser && !nextUser.isAnonymous ? nextUser : null; });
 
@@ -30,7 +31,20 @@ async function writeLog(type, details = {}) {
   } catch (error) { console.warn('Game audit log was not saved', error); }
 }
 
-function recordGameEvent(event) { void writeLog(event.detail.type, event.detail.details || {}); }
+function recordGameEvent(event) {
+  const { type, details = {} } = event.detail;
+  if (type === 'game_started') {
+    gameTrace?.stop();
+    gameTrace = startPerformanceTrace(`game_${folder}_session`);
+  }
+  if (type === 'game_finished' && gameTrace) {
+    const resultMetric = Number(details.score ?? details.milliseconds ?? details.reachedLevel ?? details.reachedCharacters ?? 0);
+    if (Number.isFinite(resultMetric) && resultMetric >= 0) gameTrace.putMetric('result_value', Math.round(resultMetric));
+    gameTrace.stop();
+    gameTrace = null;
+  }
+  void writeLog(type, details);
+}
 window.__hstGameIntegrityReady = true;
 window.addEventListener('hst:game-event', recordGameEvent);
 (window.__hstPendingGameEvents || []).forEach(event => recordGameEvent({ detail: event }));

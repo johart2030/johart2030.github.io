@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import { getAnalytics, isSupported as analyticsSupported } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-analytics.js";
+import { getPerformance, trace } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-performance.js";
 import { getAuth, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updateProfile, deleteUser, reauthenticateWithPopup, setPersistence, browserLocalPersistence, signInWithCredential, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, runTransaction, serverTimestamp, collection, collectionGroup, query, orderBy, limit, getDocs, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { getDatabase, ref, set, update, remove, get, onValue, onDisconnect, serverTimestamp as rtdbTimestamp, push, runTransaction as runRTDBTransaction } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
@@ -21,6 +22,25 @@ export const db = getFirestore(app);
 export const rtdb = getDatabase(app);
 setPersistence(auth, browserLocalPersistence).catch(console.warn);
 analyticsSupported().then(ok => { if (ok) getAnalytics(app); }).catch(() => {});
+export let performanceMonitoring = null;
+try {
+  performanceMonitoring = getPerformance(app);
+} catch (error) {
+  // Performance Monitoring is unavailable in unsupported browser contexts.
+  console.info('Firebase Performance Monitoring unavailable', error);
+}
+
+export function startPerformanceTrace(name) {
+  if (!performanceMonitoring) return null;
+  try {
+    const activeTrace = trace(performanceMonitoring, name);
+    activeTrace.start();
+    return activeTrace;
+  } catch (error) {
+    console.warn('Could not start performance trace', error);
+    return null;
+  }
+}
 
 export { onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updateProfile, deleteUser, reauthenticateWithPopup, signInWithCredential, signInAnonymously, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, runTransaction, serverTimestamp, collection, collectionGroup, query, orderBy, limit, getDocs, where, ref, set, update, remove, get, onValue, onDisconnect, rtdbTimestamp, push, runRTDBTransaction };
 
