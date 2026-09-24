@@ -4,16 +4,15 @@ import { getPerformance, trace } from "https://www.gstatic.com/firebasejs/12.18.
 import { getAuth, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updateProfile, deleteUser, reauthenticateWithPopup, setPersistence, browserLocalPersistence, signInWithCredential, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, runTransaction, serverTimestamp, collection, collectionGroup, query, orderBy, limit, getDocs, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { getDatabase, ref, set, update, remove, get, onValue, onDisconnect, serverTimestamp as rtdbTimestamp, push, runTransaction as runRTDBTransaction } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
-
 export const firebaseConfig = {
-  apiKey: "AIzaSyAarz1W85ASeOPxSGTiz3jgKeXA9Mskw18",
-  authDomain: "human-skills-tester.firebaseapp.com",
-  projectId: "human-skills-tester",
-  storageBucket: "human-skills-tester.firebasestorage.app",
-  messagingSenderId: "820576883284",
-  appId: "1:820576883284:web:1e381f056b99bd048293c1",
-  measurementId: "G-MLHW8FN7VM",
-  databaseURL: "https://human-skills-tester-default-rtdb.firebaseio.com"
+    apiKey: "AIzaSyAarz1W85ASeOPxSGTiz3jgKeXA9Mskw18",
+    authDomain: "human-skills-tester.firebaseapp.com",
+    projectId: "human-skills-tester",
+    storageBucket: "human-skills-tester.firebasestorage.app",
+    messagingSenderId: "820576883284",
+    appId: "1:820576883284:web:1e381f056b99bd048293c1",
+    measurementId: "G-MLHW8FN7VM",
+    databaseURL: "https://human-skills-tester-default-rtdb.firebaseio.com"
 };
 export const GOOGLE_CLIENT_ID = "820576883284-v4ojl18sjr9a07sv6hjkglc8eh0di0f6.apps.googleusercontent.com";
 export const app = initializeApp(firebaseConfig);
@@ -21,81 +20,96 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const rtdb = getDatabase(app);
 setPersistence(auth, browserLocalPersistence).catch(console.warn);
-analyticsSupported().then(ok => { if (ok) getAnalytics(app); }).catch(() => {});
+analyticsSupported().then(ok => {
+    if (ok)
+        getAnalytics(app);
+}).catch(() => {
+});
 export let performanceMonitoring = null;
 try {
-  performanceMonitoring = getPerformance(app);
-} catch (error) {
-  // Performance Monitoring is unavailable in unsupported browser contexts.
-  console.info('Firebase Performance Monitoring unavailable', error);
+    performanceMonitoring = getPerformance(app);
 }
-
+catch (error) {
+    // Performance Monitoring is unavailable in unsupported browser contexts.
+    console.info('Firebase Performance Monitoring unavailable', error);
+}
 export function startPerformanceTrace(name) {
-  if (!performanceMonitoring) return null;
-  try {
-    const activeTrace = trace(performanceMonitoring, name);
-    activeTrace.start();
-    return activeTrace;
-  } catch (error) {
-    console.warn('Could not start performance trace', error);
-    return null;
-  }
+    if (!performanceMonitoring)
+        return null;
+    try {
+        const activeTrace = trace(performanceMonitoring, name);
+        activeTrace.start();
+        return activeTrace;
+    }
+    catch (error) {
+        console.warn('Could not start performance trace', error);
+        return null;
+    }
 }
-
 export { onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updateProfile, deleteUser, reauthenticateWithPopup, signInWithCredential, signInAnonymously, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, runTransaction, serverTimestamp, collection, collectionGroup, query, orderBy, limit, getDocs, where, ref, set, update, remove, get, onValue, onDisconnect, rtdbTimestamp, push, runRTDBTransaction };
-
 export function friendlyError(error) {
-  const map = {
-    'auth/email-already-in-use': 'That email already has an account.',
-    'auth/invalid-credential': 'Email or password is incorrect.',
-    'auth/weak-password': 'Use a password with at least 6 characters.',
-    'auth/popup-closed-by-user': 'The sign-in window was closed.',
-    'auth/popup-blocked': 'Pop-up blocked. Trying a full page sign-in instead.',
-    'auth/network-request-failed': 'Network error. Check your connection.',
-    'auth/requires-recent-login': 'Please sign out and sign in again before deleting your account.',
-    'permission-denied': 'Firebase rules blocked this request. Deploy the included rules.'
-  };
-  return map[error?.code] || error?.message || 'Something went wrong.';
+    const map = {
+        'auth/email-already-in-use': 'That email already has an account.',
+        'auth/invalid-credential': 'Email or password is incorrect.',
+        'auth/weak-password': 'Use a password with at least 6 characters.',
+        'auth/popup-closed-by-user': 'The sign-in window was closed.',
+        'auth/popup-blocked': 'Pop-up blocked. Trying a full page sign-in instead.',
+        'auth/network-request-failed': 'Network error. Check your connection.',
+        'auth/requires-recent-login': 'Please sign out and sign in again before deleting your account.',
+        'permission-denied': 'Firebase rules blocked this request. Deploy the included rules.'
+    };
+    return map[error?.code] || error?.message || 'Something went wrong.';
 }
-
 export async function profileFor(uid) {
-  const snapshot = await getDoc(doc(db, 'users', uid));
-  return snapshot.exists() ? snapshot.data() : null;
+    const snapshot = await getDoc(doc(db, 'users', uid));
+    return snapshot.exists() ? snapshot.data() : null;
 }
-
 export async function claimDisplayName(user, raw) {
-  const displayName = raw.trim().replace(/\s+/g, ' ');
-  const key = displayName.toLowerCase();
-  if (!/^[a-zA-Z0-9 _-]{3,20}$/.test(displayName)) throw new Error('Display name must be 3–20 characters using letters, numbers, spaces, _ or -.');
-  await runTransaction(db, async transaction => {
-    const nameRef = doc(db, 'usernames', key);
-    const userRef = doc(db, 'users', user.uid);
-    const existing = await transaction.get(nameRef);
-    const old = await transaction.get(userRef);
-    if (existing.exists() && existing.data().uid !== user.uid) throw new Error('That display name is already taken.');
-    if (old.exists() && old.data().usernameKey && old.data().usernameKey !== key) transaction.delete(doc(db, 'usernames', old.data().usernameKey));
-    if (!existing.exists()) transaction.set(nameRef, { uid: user.uid, displayName });
-    transaction.set(userRef, {
-      uid: user.uid,
-      displayName,
-      usernameKey: key,
-      email: user.email || '',
-      photoURL: user.photoURL || '',
-      role: old.exists() && old.data().role ? old.data().role : 'user',
-      createdAt: old.exists() ? old.data().createdAt : serverTimestamp(),
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-    transaction.set(doc(db, 'publicProfiles', user.uid), {
-      uid: user.uid,
-      displayName,
-      photoURL: user.photoURL || '',
-      usernameKey: key,
-      statsVisible: old.exists() ? old.data().statsVisible !== false : true,
-      activityVisible: old.exists() ? old.data().activityVisible !== false : true,
-      joinPolicy: old.exists() ? old.data().joinPolicy || 'friends' : 'friends',
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-  });
-  await updateProfile(user, { displayName });
-  return displayName;
+    const displayName = raw.trim().replace(/\s+/g, ' ');
+    const key = displayName.toLowerCase();
+    if (!/^[a-zA-Z0-9 _-]{3,20}$/.test(displayName))
+        throw new Error('Display name must be 3–20 characters using letters, numbers, spaces, _ or -.');
+    await runTransaction(db, async (transaction) => {
+        const nameRef = doc(db, 'usernames', key);
+        const userRef = doc(db, 'users', user.uid);
+        const existing = await transaction.get(nameRef);
+        const old = await transaction.get(userRef);
+        if (existing.exists() && existing.data().uid !== user.uid)
+            throw new Error('That display name is already taken.');
+        if (old.exists() && old.data().usernameKey && old.data().usernameKey !== key)
+            transaction.delete(doc(db, 'usernames', old.data().usernameKey));
+        if (!existing.exists())
+            transaction.set(nameRef, {
+                uid: user.uid,
+                displayName
+            });
+        transaction.set(userRef, {
+            uid: user.uid,
+            displayName,
+            usernameKey: key,
+            email: user.email || '',
+            photoURL: user.photoURL || '',
+            role: old.exists() && old.data().role ? old.data().role : 'user',
+            createdAt: old.exists() ? old.data().createdAt : serverTimestamp(),
+            updatedAt: serverTimestamp()
+        }, {
+            merge: true
+        });
+        transaction.set(doc(db, 'publicProfiles', user.uid), {
+            uid: user.uid,
+            displayName,
+            photoURL: user.photoURL || '',
+            usernameKey: key,
+            statsVisible: old.exists() ? old.data().statsVisible !== false : true,
+            activityVisible: old.exists() ? old.data().activityVisible !== false : true,
+            joinPolicy: old.exists() ? old.data().joinPolicy || 'friends' : 'friends',
+            updatedAt: serverTimestamp()
+        }, {
+            merge: true
+        });
+    });
+    await updateProfile(user, {
+        displayName
+    });
+    return displayName;
 }

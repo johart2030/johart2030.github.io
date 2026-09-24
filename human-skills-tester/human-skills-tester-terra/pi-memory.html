@@ -1,5 +1,76 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#3568d4"><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icons/icon-192.png"><meta name="description" content="Memorize more characters of pi with every round."><title>Pi Memory | Human Skills Tester Terra</title><link rel="stylesheet" href="css/style.css"><script src="js/appearance.js"></script></head>
-<body data-page="pi"><header class="site-header"><nav class="nav" aria-label="Main navigation"><a class="brand" href="index.html">Human Skills Tester <span>Terra</span></a><button class="menu-button" aria-expanded="false">Menu</button><div class="nav-links"><a data-nav="home" href="index.html">Home</a><a data-nav="pi" href="pi-memory.html">Pi Memory</a><a data-nav="multi" href="multiplayer.html">Multiplayer</a><a data-nav="friends" href="friends.html">Friends</a><a data-nav="settings" href="settings.html">Settings</a><a data-nav="leaderboards" href="leaderboards.html">Leaderboards</a><a href="reaction.html">Reaction</a><a href="number-memory.html">Memory</a><a href="aim.html">Aim</a><span data-auth-area></span></div></nav></header>
-<main><section class="game-heading"><p class="eyebrow">Memory · Pi Day inspired</p><h1>Pi Memory</h1><p>Each successful round adds one more character of π. Start fresh at 3.14 or resume from your personal-best checkpoint. Copying and pasting are disabled.</p></section><section class="game-panel pi-panel"><div class="pi-progress" aria-label="Current round"><span>Round</span><strong id="level">—</strong><span>characters</span></div><div id="piDigits" class="pi-digits protected-prompt" data-protected-prompt aria-live="polite">Ready?</div><p id="message" class="message">Choose where to begin your Pi Memory run.</p><form id="piForm" class="pi-answer" hidden><label class="sr-only" for="piAnswer">Digits of pi, including decimal point</label><input id="piAnswer" class="input pi-input" data-manual-entry inputmode="decimal" pattern="[0-9.]*" autocomplete="off" spellcheck="false" placeholder="Type 3.14…" aria-describedby="message"><button class="button" type="submit">Check answer</button></form><div id="startOptions" class="controls pi-start-options"><button id="startBeginning" class="button" type="button">Start at 3.14</button><button id="continueBest" class="button secondary" type="button" disabled>Continue at personal best</button></div><p id="continueHint" class="message pi-continue-hint">Reach 5 characters to unlock a faster restart.</p><p class="best-line">Personal best: <strong id="best">0 characters</strong></p></section></main>
-<footer class="site-footer">Human Skills Tester Terra · Scores stay on this device</footer><script src="js/common.js"></script><script src="js/pi-memory.js"></script><script type="module" src="js/site-auth.js"></script><script type="module" src="js/cloud-scores.js"></script><script src="js/pwa.js"></script></body></html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="theme-color" content="#3568d4">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <meta name="description" content="Memorize more characters of pi with every round.">
+    <title>Pi Memory | Human Skills Tester Terra</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="js/appearance.js">
+    </script>
+  </head>
+  <body data-page="pi">
+    <header class="site-header">
+      <nav class="nav" aria-label="Main navigation">
+        <a class="brand" href="index.html">Human Skills Tester <span>Terra</span>
+      </a>
+      <button class="menu-button" aria-expanded="false">Menu</button>
+      <div class="nav-links">
+        <a data-nav="home" href="index.html">Home</a>
+        <a data-nav="pi" href="pi-memory.html">Pi Memory</a>
+        <a data-nav="multi" href="multiplayer.html">Multiplayer</a>
+        <a data-nav="friends" href="friends.html">Friends</a>
+        <a data-nav="settings" href="settings.html">Settings</a>
+        <a data-nav="leaderboards" href="leaderboards.html">Leaderboards</a>
+        <a href="reaction.html">Reaction</a>
+        <a href="number-memory.html">Memory</a>
+        <a href="aim.html">Aim</a>
+        <span data-auth-area>
+        </span>
+      </div>
+    </nav>
+  </header>
+  <main>
+    <section class="game-heading">
+      <p class="eyebrow">Memory · Pi Day inspired</p>
+      <h1>Pi Memory</h1>
+      <p>Each successful round adds one more character of π. Start fresh at 3.14 or resume from your personal-best checkpoint. Copying and pasting are disabled.</p>
+    </section>
+    <section class="game-panel pi-panel">
+      <div class="pi-progress" aria-label="Current round">
+        <span>Round</span>
+        <strong id="level">—</strong>
+        <span>characters</span>
+      </div>
+      <div id="piDigits" class="pi-digits protected-prompt" data-protected-prompt aria-live="polite">Ready?</div>
+      <p id="message" class="message">Choose where to begin your Pi Memory run.</p>
+      <form id="piForm" class="pi-answer" hidden>
+        <label class="sr-only" for="piAnswer">Digits of pi, including decimal point</label>
+        <input id="piAnswer" class="input pi-input" data-manual-entry inputmode="decimal" pattern="[0-9.]*" autocomplete="off" spellcheck="false" placeholder="Type 3.14…" aria-describedby="message">
+        <button class="button" type="submit">Check answer</button>
+      </form>
+      <div id="startOptions" class="controls pi-start-options">
+        <button id="startBeginning" class="button" type="button">Start at 3.14</button>
+        <button id="continueBest" class="button secondary" type="button" disabled>Continue at personal best</button>
+      </div>
+      <p id="continueHint" class="message pi-continue-hint">Reach 5 characters to unlock a faster restart.</p>
+      <p class="best-line">Personal best: <strong id="best">0 characters</strong>
+    </p>
+  </section>
+</main>
+<footer class="site-footer">Human Skills Tester Terra · Scores stay on this device</footer>
+<script src="js/common.js">
+</script>
+<script src="js/pi-memory.js">
+</script>
+<script type="module" src="js/site-auth.js">
+</script>
+<script type="module" src="js/cloud-scores.js">
+</script>
+<script src="js/pwa.js">
+</script>
+</body>
+</html>
