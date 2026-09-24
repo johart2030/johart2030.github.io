@@ -12,7 +12,7 @@ onAuthStateChanged(auth, nextUser => { user = nextUser && !nextUser.isAnonymous 
 function gameIsActive() {
   const bySelector = selector => Boolean(document.querySelector(selector));
   const checks = {
-    number: () => bySelector('#start[hidden]'), pi: () => bySelector('#start[hidden]'), typing: () => bySelector('#start[hidden]'),
+    number: () => bySelector('#start[hidden]'), pi: () => bySelector('#startOptions[hidden]'), typing: () => bySelector('#start[hidden]'),
     reaction: () => bySelector('#zone.waiting, #zone.ready'), aim: () => { const target = document.getElementById('target'); return Boolean(target && !target.hidden); },
     sequence: () => bySelector('#start[hidden]'), visual: () => bySelector('#start[hidden]'), math: () => bySelector('#form:not([hidden])')
   };

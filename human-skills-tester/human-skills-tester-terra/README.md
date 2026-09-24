@@ -5,6 +5,7 @@ Terra is the complete v10-stable Human Skills Tester build with all existing sin
 New in Terra:
 
 - Pi Memory: starts at `3.14`; every correct round adds the next character of π.
+- Pi Memory restart choice: begin at `3.14` or resume directly at a personal-best checkpoint of five characters or more.
 - Protected Pi and Typing Test prompts, with paste, drop, cut, and copy shortcuts rejected in the manual-entry fields.
 - Protected Number Memory prompts and manual-only number entry.
 - Pi personal bests, score sync, and a Pi Memory leaderboard.
@@ -19,7 +20,7 @@ New in Terra:
 
 1. Deploy this folder as its own site path or replace an existing site build.
 2. Deploy the included Firebase rules and collection-group index when using accounts, logs, friends, multiplayer, or cloud leaderboards: `firebase deploy --only firestore:rules,firestore:indexes,database`.
-3. Reload or reinstall the PWA after deploy. The Terra cache name is `hst-terra-v6`.
+3. Reload or reinstall the PWA after deploy. The Terra cache name is `hst-terra-v7`.
 
 ## Administrator access
 
