@@ -1,5 +1,4 @@
-import { auth, rtdb, ref, get, onValue, onDisconnect, update, runRTDBTransaction, rtdbTimestamp, profileFor, onAuthStateChanged } from './firebase.js';
-const $ = selector => document.querySelector(selector);
+import { auth, rtdb, ref, get, onValue, onDisconnect, update, set, runRTDBTransaction, rtdbTimestamp, profileFor, onAuthStateChanged } from './firebase.js';const $ = selector => document.querySelector(selector);
 const roomId = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
 let user = null, profile = null, room = null, serverOffset = 0, activeRound = 0, gameStarted = false, finished = false, timer = null, started = 0, score = 0, solution = 0, advancingRound = 0;
 function waitForAuth() {
