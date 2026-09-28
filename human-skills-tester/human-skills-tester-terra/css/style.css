@@ -894,6 +894,62 @@ select.input {
         justify-content: space-between
     }
 }
+
+/* Comfortable controls and layout on phones, tablets, and installed web apps. */
+@media (max-width: 700px) {
+    body {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    main {
+        width: min(100% - 24px, 1100px);
+        padding: 28px 0 42px;
+    }
+    .nav {
+        min-height: 58px;
+        padding: 8px 12px;
+    }
+    .menu-button {
+        display: inline-flex;
+    }
+    .nav-links {
+        display: none;
+        position: absolute;
+        top: 58px;
+        left: 0;
+        right: 0;
+        padding: 12px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--line);
+        box-shadow: var(--shadow);
+    }
+    .nav-links.open {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .nav-links a, .nav-links .account-pill {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+    .online-nav {
+        grid-column: 1 / -1;
+    }
+    .hero {
+        padding: 24px 4px 20px;
+    }
+    .stats, .grid {
+        grid-template-columns: 1fr;
+    }
+    .card {
+        min-height: 0;
+    }
+    .game-panel {
+        padding: 18px 14px;
+    }
+    .button, .input, textarea, select {
+        min-height: 44px;
+    }
+}
 /* Mobile multiplayer reliability UI */
 .room-topline {
     width: 100%;

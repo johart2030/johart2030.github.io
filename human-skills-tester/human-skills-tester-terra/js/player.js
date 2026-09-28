@@ -1,4 +1,4 @@
-import { auth, db, rtdb, onAuthStateChanged, doc, getDoc, ref, get } from './firebase.js';
+import { auth, db, rtdb, onAuthStateChanged, doc, getDoc, ref, onValue } from './firebase.js';
 const $ = s => document.querySelector(s), tests = {
     reaction: ['Reaction', 'ms'],
     number: ['Number Memory', 'level'],
@@ -9,6 +9,22 @@ const $ = s => document.querySelector(s), tests = {
     math: ['Math', 'correct']
 };
 let target;
+
+function activityLabel(presence, activityVisible) {
+    if (presence.state !== 'online') return 'Offline';
+    if (!activityVisible) return 'Online';
+    if (presence.activity !== 'multiplayer') return 'Online · Browsing Human Skills Tester';
+    const game = presence.gameType ? `${presence.gameType[0].toUpperCase()}${presence.gameType.slice(1)}` : 'game';
+    return `${presence.joinable ? 'Waiting in' : 'Playing'} ${game}${presence.rounds ? ` · ${presence.rounds} round${presence.rounds === 1 ? '' : 's'}` : ''}`;
+}
+
+function renderPresence(presence, activityVisible) {
+    const online = presence.state === 'online';
+    $('#playerPresence').textContent = activityLabel(presence, activityVisible);
+    const join = online && activityVisible && presence.joinable && presence.roomId;
+    $('#profileJoin').hidden = !join;
+    if (join) $('#profileJoin').href = `multiplayer.html?room=${encodeURIComponent(presence.roomId)}`;
+}
 async function boot() {
     await new Promise(resolve => {
         const stop = onAuthStateChanged(auth, () => {
@@ -38,16 +54,11 @@ async function boot() {
         throw new Error('This player has not opened the updated site yet. Ask them to open Profile or Settings once.');
     $('#playerAvatar').textContent = (data.displayName || '?')[0].toUpperCase();
     $('#playerName').textContent = data.displayName || 'Player';
-    let presence = {};
-    try {
-        presence = (await get(ref(rtdb, `socialPresence/${target}`))).val() || {};
-    }
-    catch {
-    }
-    $('#playerPresence').textContent = presence.state === 'online' ? 'Online' : 'Offline';
-    $('#profileJoin').hidden = !(presence.state === 'online' && presence.joinable && presence.roomId);
-    if (!$('#profileJoin').hidden)
-        $('#profileJoin').href = `multiplayer.html?room=${encodeURIComponent(presence.roomId)}`;
+    renderPresence({}, data.activityVisible !== false);
+    const stopPresence = onValue(ref(rtdb, `socialPresence/${target}`), snapshot => {
+        renderPresence(snapshot.val() || {}, data.activityVisible !== false);
+    }, () => renderPresence({}, data.activityVisible !== false));
+    window.addEventListener('pagehide', stopPresence, { once: true });
     if (data.statsVisible === false) {
         $('#statsGrid').innerHTML = '<div class="empty-state">This player keeps their stats private.</div>';
         return;
