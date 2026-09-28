@@ -7,7 +7,7 @@ Small browser game inspired by Space Waves, with optional Google sign-in, progre
 Serve the folder locally (recommended for Firebase auth):
 
 ```powershell
-cd "c:\Users\johart2030\Documents\Ripoff Space Waves"
+cd "C:\Users\johart2030\Documents\GitHub\johart2030.github.io\wave-dash-games\wave-dash-new"
 py -m http.server 8080
 ```
 

@@ -5,7 +5,7 @@
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
 
-    script-src 
+    script-src
       'self'
       'unsafe-inline'
       https://www.gstatic.com
@@ -14,7 +14,7 @@
       https://myaccount.google.com
       https://*.firebaseio.com;
 
-    connect-src 
+    connect-src
       'self'
       https://*.firebaseio.com
       wss://*.firebaseio.com
@@ -26,14 +26,15 @@
       https://accounts.google.com;
 
 style-src 'self' 'unsafe-inline' https://accounts.google.com;
-    
+
     img-src 'self' data: https:;
-    
+
     font-src 'self' https:;
-    
+
     frame-src 'self'
       https://accounts.google.com
       https://*.firebaseio.com
+      https://*.google.com
       https://*.firebaseapp.com;
   ">
 <!-- Google One Tap -->
@@ -45,16 +46,21 @@ style-src 'self' 'unsafe-inline' https://accounts.google.com;
 <!-- One Tap trigger AFTER -->
 <script type="module" src="onetap.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta name="referrer" content="no-referrer-when-downgrade" />
   <title>Wave Dash</title>
   <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div id="g_id_onload"
+     data-client_id="92140525618-gffm531n2kucvu82s3g4vanobdgp1cqa.apps.googleusercontent.com"
+     data-callback="handleCredentialResponse"
+     data-auto_prompt="true">
+</div>
   <main class="app">
     <section class="hud">
       <h1>Wave Dash</h1>
-      <p class="hint">Hold SPACE / click / tap to fly up. Release to dive.</p>
+      <p class="hint">Hold SPACE, W, ↑, click, or tap to fly up. Release to dive. Press P or Esc to pause a solo run.</p>
       <section class="session-tools">
         <div class="tool-row">
           <label for="difficultySelect">Difficulty</label>
@@ -147,30 +153,40 @@ style-src 'self' 'unsafe-inline' https://accounts.google.com;
     </section>
 
     <section class="game-wrap" id="gameWrap">
-      <canvas id="game" width="960" height="540" aria-label="game canvas"></canvas>
+      <canvas id="game" width="960" height="540" aria-label="Wave Dash game area" aria-describedby="overlayText"></canvas>
       <div class="game-top">
         <div class="game-stats">
           <span>Score: <strong id="score">0</strong></span>
           <span>Best: <strong id="best">0</strong></span>
           <span>Speed: <strong id="speed">1.00x</strong></span>
           <span>Points: <strong id="coins">0</strong></span>
-          <span>Online: <strong id="onlineCount">0</strong></span>
+          <span>Run Coins: <strong id="runCoins">0</strong></span>
+          <span>FPS: <strong id="fpsCount">0</strong></span>
+          <span>Clicks: <strong id="clickCount">0</strong></span>
+          <button id="onlineStat" type="button" class="online-stat">Online: <strong id="onlineCount">0</strong></button>
+          <div id="onlinePopover" class="online-popover hidden" aria-live="polite"></div>
         </div>
         <div class="game-mp">
           <span id="mpStatus">Multiplayer: Off</span>
           <div class="game-mp-actions">
             <button id="mpToggleBtn">Multiplayer</button>
             <button id="mpRoomBtn">Room</button>
+            <button id="pauseBtn" type="button" disabled>Pause</button>
             <button id="fullscreenBtn">Full Screen</button>
-            <button id="openAuthBtn">Login</button>
+            <button id="openAuthBtn" class="account-btn">Login</button>
           </div>
         </div>
       </div>
-      <div class="overlay" id="overlay">
+      <div class="overlay" id="overlay" aria-live="polite">
         <h2 id="overlayTitle">Press Space To Start</h2>
         <p id="overlayText">Avoid the wave walls and survive as long as possible.</p>
       </div>
       <button class="mobile-fly-btn" id="mobileFlyBtn" aria-label="Hold to fly">Hold To Fly</button>
+      <div id="oneTapDebug" class="one-tap-debug hidden" aria-live="polite">Sign-in debug: idle</div>
+      <div id="oneTapFallback" class="one-tap-fallback hidden">
+        <p>Sign in to sync your progress and use multiplayer.</p>
+        <button id="oneTapFallbackBtn" type="button">Continue with Google</button>
+      </div>
     </section>
   </main>
 

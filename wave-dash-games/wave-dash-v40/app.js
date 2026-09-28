@@ -1,4 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
 import {
   createUserWithEmailAndPassword,
   getAuth,
@@ -9,7 +9,7 @@ import {
   signInWithRedirect,
   signOut,
   updateProfile,
-} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
+} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 import {
   doc,
   getDoc,
@@ -21,19 +21,19 @@ import {
   query,
   orderBy,
   limit,
-} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 import {
   getDatabase,
   ref as dbRef,
   onValue,
   update as dbUpdate,
   get as dbGet,
-  set as dbSet,               // ✅ ADD THIS
+  set as dbSet,               // âœ… ADD THIS
   onDisconnect,
   serverTimestamp as rtdbServerTimestamp,
   remove as dbRemove,
   runTransaction,
-} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-database.js";
+} from "https://www.gstatic.com/firebasejs/12.10.0/firebase-database.js";
 import { enableCloudSave, firebaseConfig } from "./firebase-config.js";
 
 const canvas = document.getElementById("game");
@@ -44,7 +44,10 @@ const musicToggleBtn = document.getElementById("musicToggleBtn");
 const scoreEl = document.getElementById("score");
 const bestEl = document.getElementById("best");
 const coinsEl = document.getElementById("coins");
+const runCoinsEl = document.getElementById("runCoins");
 const speedEl = document.getElementById("speed");
+const fpsCountEl = document.getElementById("fpsCount");
+const clickCountEl = document.getElementById("clickCount");
 const overlay = document.getElementById("overlay");
 const overlayTitle = document.getElementById("overlayTitle");
 const overlayText = document.getElementById("overlayText");
@@ -86,9 +89,12 @@ const adCopy = document.getElementById("adCopy");
 const mobileFlyBtn = document.getElementById("mobileFlyBtn");
 const mpToggleBtn = document.getElementById("mpToggleBtn");
 const mpStatus = document.getElementById("mpStatus");
+const onlineStatEl = document.getElementById("onlineStat");
 const onlineCountEl = document.getElementById("onlineCount");
+const onlinePopoverEl = document.getElementById("onlinePopover");
 const versionText = document.getElementById("versionText");
 const fullscreenBtn = document.getElementById("fullscreenBtn");
+const pauseBtn = document.getElementById("pauseBtn");
 const mpRoomBtn = document.getElementById("mpRoomBtn");
 const roomModal = document.getElementById("roomModal");
 const closeRoomBtn = document.getElementById("closeRoomBtn");
@@ -109,7 +115,7 @@ const MULTI_PUBLIC_ROOM_ID = "public";
 const MULTI_PING_MS = 200;
 const MULTI_STALE_MS = 9000;
 const RACE_COUNTDOWN_SEC = 3;
-const SITE_VERSION = 21.0;
+const SITE_VERSION = 40;
 const REMOTE_NAME_LIMIT = 18;
 const DIFFICULTY_KEY = "wdash-difficulty";
 const MUSIC_KEY = "wdash-music-enabled";
@@ -269,13 +275,21 @@ let editorEnabled = false;
 let editorArmed = false;
 let editorLevel = [];
 let currentRunCountsForProgress = true;
-let selectedDifficultyId = localStorage.getItem(DIFFICULTY_KEY) || "medium";
-let musicEnabled = localStorage.getItem(MUSIC_KEY) === "true";
+let selectedDifficultyId = storageGet(DIFFICULTY_KEY) || "medium";
+let musicEnabled = storageGet(MUSIC_KEY) === "true";
 let adIndex = Math.floor(Math.random() * HOUSE_ADS.length);
 let audioCtx = null;
 let musicTimer = null;
 let musicNextAt = 0;
 let sharedSpawnCache = [];
+let clickCount = 0;
+let runCoins = 0;
+let fpsDisplay = 0;
+let fpsSampleElapsed = 0;
+let fpsSampleFrames = 0;
+const activeFlyKeys = new Set();
+let onlineNames = [];
+const MAX_EDITOR_OBSTACLES = 80;
 
 let profile = loadLocalProfile();
 let best = profile.bestScore;
@@ -312,7 +326,7 @@ function validFirebaseConfig(config) {
 }
 
 if (validFirebaseConfig(firebaseConfig)) {
-  const app = initializeApp(firebaseConfig);
+  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
   db = getFirestore(app);
   rtdb = getDatabase(app);
@@ -368,27 +382,23 @@ if (validFirebaseConfig(firebaseConfig)) {
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       uid = user.uid;
+      startPresence(uid);
       authState.textContent = `Signed in: ${user.displayName || user.email || user.uid} (syncing...)`;
-      openAuthBtn.textContent = "Account";
+      updateAccountButton(user);
       logoutBtn.disabled = false;
-      await loadPlayerData();
+      await loadPlayerData(user.uid);
       authState.textContent = `Signed in: ${user.displayName || user.email || user.uid}`;
       authPassword.value = "";
-      subscribeLeaderboard();
     } else {
+      stopPresence();
       uid = null;
       authState.textContent = "Guest mode (login optional)";
-      openAuthBtn.textContent = "Login";
+      updateAccountButton(null);
       logoutBtn.disabled = true;
       if (unsubscribeProfile) {
         unsubscribeProfile();
         unsubscribeProfile = null;
       }
-      if (leaderboardUnsub) {
-        leaderboardUnsub();
-        leaderboardUnsub = null;
-      }
-      leaderboardList.innerHTML = "";
       if (mpEnabled) {
         stopMultiplayer();
         mpStatus.textContent = "Multiplayer: Sign in required";
@@ -397,6 +407,7 @@ if (validFirebaseConfig(firebaseConfig)) {
   });
 } else {
   authState.textContent = "Guest mode (Firebase auth not configured)";
+  updateAccountButton(null);
   openAuthBtn.disabled = true;
   googleLoginBtn.disabled = true;
   emailLoginBtn.disabled = true;
@@ -438,7 +449,7 @@ mpRoomBtn.addEventListener("click", () => {
 
 difficultySelect.addEventListener("change", () => {
   selectedDifficultyId = normalizeDifficultyId(difficultySelect.value);
-  localStorage.setItem(DIFFICULTY_KEY, selectedDifficultyId);
+  storageSet(DIFFICULTY_KEY, selectedDifficultyId);
   if (!mpEnabled) {
     world.sharedDifficulty = null;
     applyDifficultySettings();
@@ -481,6 +492,26 @@ openAuthBtn.addEventListener("click", () => {
   authModal.classList.remove("hidden");
 });
 
+onlineStatEl?.addEventListener("mouseenter", () => {
+  setOnlinePopoverVisible(true);
+});
+
+onlineStatEl?.addEventListener("mouseleave", () => {
+  setOnlinePopoverVisible(false);
+});
+
+onlineStatEl?.addEventListener("click", (e) => {
+  e.preventDefault();
+  const shouldShow = onlinePopoverEl?.classList.contains("hidden");
+  setOnlinePopoverVisible(Boolean(shouldShow));
+});
+
+document.addEventListener("click", (e) => {
+  if (!onlineStatEl || !onlinePopoverEl) return;
+  if (onlineStatEl.contains(e.target) || onlinePopoverEl.contains(e.target)) return;
+  setOnlinePopoverVisible(false);
+});
+
 closeAuthBtn.addEventListener("click", () => {
   authModal.classList.add("hidden");
 });
@@ -506,6 +537,28 @@ function defaultProfile() {
   };
 }
 
+function storageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function storageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // The game remains playable when storage is unavailable or full.
+  }
+}
+
+function safeNonNegativeNumber(value, maximum = 1_000_000_000) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return clamp(number, 0, maximum);
+}
+
 function idsFrom(items) {
   return new Set(items.map((item) => item.id));
 }
@@ -522,11 +575,11 @@ function normalizeProfile(data) {
   const colorIds = idsFrom(COLORS);
   const updatedAt = coerceTimestampMs(data?.updatedAt);
   const normalized = {
-    bestScore: Math.max(0, Number(data?.bestScore || 0)),
-    lastScore: Math.max(0, Number(data?.lastScore || 0)),
-    totalRuns: Math.max(0, Number(data?.totalRuns || 0)),
-    totalScore: Math.max(0, Number(data?.totalScore || 0)),
-    coins: Math.max(0, Number(data?.coins || 0)),
+    bestScore: safeNonNegativeNumber(data?.bestScore),
+    lastScore: safeNonNegativeNumber(data?.lastScore),
+    totalRuns: safeNonNegativeNumber(data?.totalRuns),
+    totalScore: safeNonNegativeNumber(data?.totalScore),
+    coins: safeNonNegativeNumber(data?.coins),
     ownedSprites: sanitizeOwned(data?.ownedSprites, spriteIds, "dart"),
     ownedTrails: sanitizeOwned(data?.ownedTrails, trailIds, "solid"),
     ownedColors: sanitizeOwned(data?.ownedColors, colorIds, "amber"),
@@ -562,6 +615,36 @@ function sanitizeDisplayName(value) {
     .replace(/[^\w .-]/g, "")
     .trim()
     .slice(0, 24);
+}
+
+function getAccountLabel(user) {
+  const source = sanitizeDisplayName(user?.displayName || user?.email || user?.uid || "");
+  return source || "Login";
+}
+
+function updateAccountButton(user) {
+  if (!openAuthBtn) return;
+  openAuthBtn.style.backgroundImage = "";
+  openAuthBtn.classList.remove("account-avatar");
+  openAuthBtn.textContent = "Login";
+  openAuthBtn.title = "Login";
+  openAuthBtn.setAttribute("aria-label", "Login");
+
+  if (!user) return;
+
+  const label = getAccountLabel(user);
+  const initial = label.charAt(0).toUpperCase() || "A";
+  openAuthBtn.classList.add("account-avatar");
+  openAuthBtn.title = label;
+  openAuthBtn.setAttribute("aria-label", `Account: ${label}`);
+  openAuthBtn.textContent = user.photoURL ? "" : initial;
+  if (user.photoURL) {
+    openAuthBtn.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.08), rgba(0,0,0,0.08)), url("${user.photoURL}")`;
+  }
+}
+
+function isFlyKey(code) {
+  return code === "Space" || code === "ArrowUp" || code === "KeyW";
 }
 
 function normalizeEmail(value) {
@@ -674,6 +757,19 @@ function resetWorldMotion() {
   world.spawnEvery = settings.spawnEvery;
 }
 
+function resetSharedRaceVisualState() {
+  world.spawnIndex = 0;
+  world.spawnTimer = 0;
+  world.obstacles = [];
+  world.pickups = [];
+  world.center = H * 0.5;
+  world.time = 0;
+  localDistance = 0;
+  trailPoints.length = 0;
+  mpTrails.clear();
+  resetWorldMotion();
+}
+
 function computeSharedDistanceWithSettings(elapsedSec, settings) {
   return settings.baseScroll * (elapsedSec + 0.5 * settings.speedGrowth * elapsedSec * elapsedSec);
 }
@@ -747,7 +843,7 @@ function scheduleMusicLoop() {
 
 function startMusic() {
   musicEnabled = true;
-  localStorage.setItem(MUSIC_KEY, "true");
+  storageSet(MUSIC_KEY, "true");
   musicToggleBtn.textContent = "Music: On";
   const ctxRef = ensureAudioContext();
   if (!ctxRef) {
@@ -772,7 +868,7 @@ function enableMusicFromGesture() {
 
 function stopMusic() {
   musicEnabled = false;
-  localStorage.setItem(MUSIC_KEY, "false");
+  storageSet(MUSIC_KEY, "false");
   musicToggleBtn.textContent = "Music: Off";
   if (musicTimer) {
     clearInterval(musicTimer);
@@ -782,22 +878,22 @@ function stopMusic() {
 
 function loadLocalProfile() {
   try {
-    const saved = localStorage.getItem(PROFILE_KEY);
+    const saved = storageGet(PROFILE_KEY);
     if (saved) return normalizeProfile(JSON.parse(saved));
   } catch {
     // Ignore invalid local profile payloads.
   }
 
   const fallback = defaultProfile();
-  const legacyBest = Math.max(0, Number(localStorage.getItem(LEGACY_BEST_KEY) || 0));
+  const legacyBest = safeNonNegativeNumber(storageGet(LEGACY_BEST_KEY));
   fallback.bestScore = legacyBest;
   fallback.lastScore = legacyBest;
   return fallback;
 }
 
 function persistLocalProfile() {
-  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-  localStorage.setItem(LEGACY_BEST_KEY, String(profile.bestScore));
+  storageSet(PROFILE_KEY, JSON.stringify(profile));
+  storageSet(LEGACY_BEST_KEY, String(profile.bestScore));
 }
 
 async function initSharedRoom(roomRef, { allowStartIfMissing } = {}) {
@@ -910,17 +1006,7 @@ async function resetRoomSeed(roomRef) {
       next.raceId = (Number(current?.raceId || 0) + 1) || 1;
       return next;
     });
-    world.sharedDifficulty = difficultyId;
-    sharedSpawnCache = [];
-    applyDifficultySettings();
-    difficultySelect.value = world.sharedDifficulty;
-    const now = Date.now() + rtdbOffsetMs;
-    world.raceId += 1;
-    world.raceStartLocalMs = now;
-    world.sharedStartMs = now + RACE_COUNTDOWN_SEC * 1000;
-    world.awaitingRaceStart = true;
-    world.raceActiveId = 0;
-    prepareRaceStart();
+    roomStatus.textContent = "Race starting...";
   } catch {
     roomStatus.textContent = "Start failed.";
   }
@@ -943,13 +1029,7 @@ function subscribeLeaderboard() {
 }
 
 function getMultiplayerId() {
-  if (uid) return uid;
-  const key = "wdash-guest-id";
-  const existing = localStorage.getItem(key);
-  if (existing) return existing;
-  const generated = `guest-${Math.random().toString(36).slice(2, 10)}`;
-  localStorage.setItem(key, generated);
-  return generated;
+  return auth?.currentUser?.uid || uid || null;
 }
 
 function generateRoomCode() {
@@ -991,11 +1071,12 @@ async function createRoom() {
     const code = generateRoomCode();
     const roomRef = dbRef(rtdb, `rooms/${code}`);
     const ownerId = getMultiplayerId();
+    if (!ownerId) throw new Error("No authenticated user");
     const seed = Math.floor(Math.random() * 1e9) + 1;
 
     console.log("Creating room:", code);
 
-    // ✅ Create FULL room structure
+    // âœ… Create FULL room structure
     await dbSet(roomRef, {
       ownerId,
       createdAt: rtdbServerTimestamp(),
@@ -1063,13 +1144,14 @@ async function joinRoom() {
 
     const data = snap.val() || {};
     const playerId = getMultiplayerId();
+    if (!playerId) throw new Error("No authenticated user");
     const isOwner = data.ownerId === playerId;
 
     console.log("Joining room:", code);
 
-    // ✅ Add player to room
+    // âœ… Add player to room
     await dbUpdate(dbRef(rtdb, `rooms/${code}/players`), {
-      [getMultiplayerId()]: {
+      [playerId]: {
         joinedAt: Date.now(),
         lastSeen: Date.now()
       }
@@ -1178,38 +1260,42 @@ function updateOnlineCount() {
   // Watch the dedicated presence/ node which all players (solo + mp) write to.
   onlineCountUnsub = onValue(dbRef(rtdb, "presence"), (snap) => {
     const now = Date.now() + rtdbOffsetMs;
-    const uniquePlayers = new Set();
+    const onlinePlayers = [];
     if (snap.exists()) {
       const entries = snap.val() || {};
       for (const [id, data] of Object.entries(entries)) {
         const lastSeen = coerceTimestampMs(data?.lastSeen);
         if (lastSeen && now - lastSeen <= MULTI_STALE_MS) {
-          uniquePlayers.add(id);
+          onlinePlayers.push(sanitizePlayerName(data?.name || id));
         }
       }
     }
-    onlineCountEl.textContent = String(uniquePlayers.size);
+    onlinePlayers.sort((a, b) => a.localeCompare(b));
+    onlineNames = onlinePlayers;
+    onlineCountEl.textContent = String(onlinePlayers.length);
+    renderOnlinePopover();
   });
 }
 
-// Write a heartbeat to presence/{id} every 4 seconds so this player
-// shows up in the online count even during solo play.
-function startPresence() {
-  if (!rtdb) return;
-  const id = getMultiplayerId();
-  presenceRef = dbRef(rtdb, `presence/${id}`);
-
-  function ping() {
-    if (!presenceRef) return;
-    void dbUpdate(presenceRef, { lastSeen: rtdbServerTimestamp() });
+function renderOnlinePopover() {
+  if (!onlinePopoverEl) return;
+  if (!onlineNames.length) {
+    onlinePopoverEl.textContent = "No players online";
+    return;
   }
+  onlinePopoverEl.replaceChildren(
+    ...onlineNames.map((name) => {
+      const row = document.createElement("div");
+      row.textContent = name;
+      return row;
+    })
+  );
+}
 
-  ping();
-  if (presencePingTimer) clearInterval(presencePingTimer);
-  presencePingTimer = setInterval(ping, 4000);
-
-  // Remove this player's presence entry when they close the tab.
-  onDisconnect(presenceRef).remove();
+function setOnlinePopoverVisible(visible) {
+  if (!onlinePopoverEl) return;
+  renderOnlinePopover();
+  onlinePopoverEl.classList.toggle("hidden", !visible);
 }
 
 function stopPresence() {
@@ -1253,6 +1339,7 @@ function setEditorPanelVisible(value) {
 function editorObstacleFromClick(kind, x, y) {
   const gap = Math.max(80, Math.min(220, Number(editorGap.value || 150)));
   const width = Math.max(40, Math.min(100, Number(editorWidth.value || 64)));
+  const safeY = clamp(y, 70, H - 70);
   if (kind === "spinner") {
     return {
       kind,
@@ -1261,7 +1348,7 @@ function editorObstacleFromClick(kind, x, y) {
       armLen: 46,
       angle: 0,
       spin: 2.6,
-      baseY: y,
+      baseY: safeY,
       swayAmp: 28,
       swayFreq: 1.6,
       phase: 0,
@@ -1274,7 +1361,7 @@ function editorObstacleFromClick(kind, x, y) {
       kind,
       x,
       w: width,
-      baseCenter: y,
+      baseCenter: safeY,
       amp: 40,
       freq: 1.8,
       phase: 0,
@@ -1288,7 +1375,7 @@ function editorObstacleFromClick(kind, x, y) {
       kind,
       x,
       w: width,
-      center: y,
+      center: safeY,
       baseGap: gap,
       pulse: 20,
       freq: 2.4,
@@ -1298,12 +1385,12 @@ function editorObstacleFromClick(kind, x, y) {
     };
   }
   if (kind === "corridor") {
-    const centerB = clamp(y + 80, 90, H - 90);
+    const centerB = clamp(safeY + 80, 90, H - 90);
     return {
       kind,
       x,
       w: Math.max(140, width * 2),
-      centerA: y,
+      centerA: safeY,
       centerB,
       gap,
       split: 0.5,
@@ -1315,7 +1402,7 @@ function editorObstacleFromClick(kind, x, y) {
     kind: "gate",
     x,
     w: width,
-    center: y,
+    center: safeY,
     gap,
     scored: false,
     editor: true,
@@ -1331,11 +1418,80 @@ function importEditorLevel() {
   try {
     const parsed = JSON.parse(editorData.value || "[]");
     if (!Array.isArray(parsed)) throw new Error("Invalid format");
-    editorLevel = parsed.map((o) => ({ ...o, scored: false, editor: true }));
-    editorMsg.textContent = `Imported ${editorLevel.length} obstacles.`;
+    if (parsed.length > MAX_EDITOR_OBSTACLES) throw new Error("Too many obstacles");
+    editorLevel = parsed.map(sanitizeEditorObstacle).filter(Boolean);
+    if (!editorLevel.length && parsed.length) throw new Error("No valid obstacles");
+    editorMsg.textContent = `Imported ${editorLevel.length} obstacle${editorLevel.length === 1 ? "" : "s"}.`;
   } catch {
-    editorMsg.textContent = "Import failed: invalid JSON.";
+    editorMsg.textContent = `Import failed. Use a valid level with up to ${MAX_EDITOR_OBSTACLES} obstacles.`;
   }
+}
+
+function sanitizeEditorObstacle(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const kinds = new Set(["gate", "movingGate", "pulseGate", "spinner", "corridor"]);
+  if (!kinds.has(raw.kind)) return null;
+  const x = clamp(safeNonNegativeNumber(raw.x, W * 6), 0, W * 6);
+  const ySource = raw.kind === "spinner" ? raw.baseY : raw.baseCenter ?? raw.center ?? raw.centerA;
+  const y = clamp(safeNonNegativeNumber(ySource, H), 70, H - 70);
+  const base = editorObstacleFromClick(raw.kind, x, y);
+  const gap = clamp(safeNonNegativeNumber(raw.gap ?? raw.baseGap, 220), 80, 220);
+  const width = clamp(safeNonNegativeNumber(raw.w, 100), 40, 220);
+
+  if (raw.kind === "spinner") {
+    return {
+      ...base,
+      radius: clamp(safeNonNegativeNumber(raw.radius, 24), 6, 24),
+      armLen: clamp(safeNonNegativeNumber(raw.armLen, 100), 20, 100),
+      angle: safeNonNegativeNumber(raw.angle, Math.PI * 2),
+      spin: clamp(Number(raw.spin) || 2.6, -6, 6),
+      swayAmp: clamp(safeNonNegativeNumber(raw.swayAmp, 80), 0, 80),
+      swayFreq: clamp(safeNonNegativeNumber(raw.swayFreq, 5), 0, 5),
+      phase: safeNonNegativeNumber(raw.phase, Math.PI * 2),
+      scored: false,
+      editor: true,
+    };
+  }
+
+  if (raw.kind === "corridor") {
+    return {
+      ...base,
+      w: Math.max(140, width),
+      centerB: clamp(safeNonNegativeNumber(raw.centerB, H), 70, H - 70),
+      gap,
+      split: clamp(Number(raw.split) || 0.5, 0.25, 0.75),
+      scored: false,
+      editor: true,
+    };
+  }
+
+  if (raw.kind === "movingGate") {
+    return {
+      ...base,
+      w: width,
+      gap,
+      amp: clamp(safeNonNegativeNumber(raw.amp, 100), 0, 100),
+      freq: clamp(safeNonNegativeNumber(raw.freq, 5), 0, 5),
+      phase: safeNonNegativeNumber(raw.phase, Math.PI * 2),
+      scored: false,
+      editor: true,
+    };
+  }
+
+  if (raw.kind === "pulseGate") {
+    return {
+      ...base,
+      w: width,
+      baseGap: gap,
+      pulse: clamp(safeNonNegativeNumber(raw.pulse, 50), 0, 50),
+      freq: clamp(safeNonNegativeNumber(raw.freq, 5), 0, 5),
+      phase: safeNonNegativeNumber(raw.phase, Math.PI * 2),
+      scored: false,
+      editor: true,
+    };
+  }
+
+  return { ...base, w: width, gap, scored: false, editor: true };
 }
 
 function mergeProfiles(localProfile, remoteProfile) {
@@ -1355,7 +1511,8 @@ function mergeProfiles(localProfile, remoteProfile) {
     lastScore: remoteIsNewer ? remoteProfile.lastScore : localProfile.lastScore,
     totalRuns: Math.max(localProfile.totalRuns, remoteProfile.totalRuns),
     totalScore: Math.max(localProfile.totalScore, remoteProfile.totalScore),
-    coins: remoteIsNewer ? remoteProfile.coins : localProfile.coins,
+    // Never let a stale device erase legitimately earned points.
+    coins: Math.max(localProfile.coins, remoteProfile.coins),
     ownedSprites,
     ownedTrails,
     ownedColors,
@@ -1366,7 +1523,7 @@ function mergeProfiles(localProfile, remoteProfile) {
   };
 }
 
-async function loadPlayerData() {
+async function loadPlayerData(uid) {
   if (!enableCloudSave || !uid || !db) return;
   try {
     const ref = doc(db, "players", uid);
@@ -1446,6 +1603,7 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
   world.raceActiveId = 0;
   mpSendCooldown = 0;
   state = "idle";
+  updatePauseButton();
   currentRunCountsForProgress = true;
   resetPlayerToCenter("Waiting for the race to start.");
 
@@ -1468,48 +1626,33 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
     if (seed && seed !== world.sharedSeed) {
       world.sharedSeed = seed;
       sharedSpawnCache = [];
-      world.spawnIndex = 0;
-      world.spawnTimer = 0;
-      world.obstacles = [];
-      world.pickups = [];
-      world.center = H * 0.5;
+      resetSharedRaceVisualState();
     }
     if (raceId && raceId !== world.raceId) {
       world.raceId = raceId;
       world.raceActiveId = 0;
-      if (startAtMs) {
-        if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
-          world.sharedStartMs = startAtMs;
-          world.raceStartLocalMs = null;
-          if (!world.publicStartOverrideMs) {
-            const now = Date.now() + rtdbOffsetMs;
-            world.joinTimeSec = Math.max(0, (now - world.sharedStartMs) / 1000);
-          }
-        } else {
-          world.raceStartLocalMs = startAtMs;
-          world.sharedStartMs = startAtMs + RACE_COUNTDOWN_SEC * 1000;
-          world.joinTimeSec = 0;
+      if (!startAtMs) {
+        world.awaitingRaceStart = false;
+        world.sharedStartMs = null;
+        world.raceStartLocalMs = null;
+        if (mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
+          showOverlay("Race Syncing", "Waiting for the room start to sync...");
+        }
+        return;
+      }
+      if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+        world.sharedStartMs = startAtMs;
+        world.raceStartLocalMs = null;
+        if (!world.publicStartOverrideMs) {
+          const now = Date.now() + rtdbOffsetMs;
+          world.joinTimeSec = Math.max(0, (now - world.sharedStartMs) / 1000);
         }
       } else {
-        const now = Date.now() + rtdbOffsetMs;
-        if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
-          world.sharedStartMs = now;
-          world.raceStartLocalMs = null;
-          world.joinTimeSec = 0;
-        } else {
-          world.raceStartLocalMs = now;
-          world.sharedStartMs = now + RACE_COUNTDOWN_SEC * 1000;
-          world.joinTimeSec = 0;
-        }
+        world.raceStartLocalMs = startAtMs;
+        world.sharedStartMs = startAtMs + RACE_COUNTDOWN_SEC * 1000;
+        world.joinTimeSec = 0;
       }
-      world.spawnIndex = 0;
-      world.spawnTimer = 0;
-      world.obstacles = [];
-      world.pickups = [];
-      world.center = H * 0.5;
-      world.time = 0;
-      localDistance = 0;
-      resetWorldMotion();
+      resetSharedRaceVisualState();
       if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
         world.awaitingRaceStart = false;
         hideOverlay();
@@ -1532,14 +1675,7 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
         world.joinTimeSec = 0;
       }
       world.raceActiveId = 0;
-      world.spawnIndex = 0;
-      world.spawnTimer = 0;
-      world.obstacles = [];
-      world.pickups = [];
-      world.center = H * 0.5;
-      world.time = 0;
-      localDistance = 0;
-      resetWorldMotion();
+      resetSharedRaceVisualState();
       if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
         world.awaitingRaceStart = false;
         hideOverlay();
@@ -1557,8 +1693,7 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
       world.raceStartLocalMs = null;
       world.awaitingRaceStart = false;
       world.joinTimeSec = 0;
-      world.obstacles = [];
-      world.pickups = [];
+      resetSharedRaceVisualState();
       score = 0;
       state = "idle";
       resetPlayerToCenter("Waiting for the race to start.");
@@ -1589,7 +1724,14 @@ function startMultiplayer(roomId, { autoStart, ownerId } = {}) {
       const x = getRemoteRenderX(data);
       const y = data.y || 0;
       const trail = mpTrails.get(id) || [];
-      trail.push({ x, y, life: 0.8 });
+      const lastPoint = trail[trail.length - 1];
+      if (lastPoint && Math.abs(lastPoint.x - x) < 4 && Math.abs(lastPoint.y - y) < 4) {
+        lastPoint.x = x;
+        lastPoint.y = y;
+        lastPoint.life = 1.05;
+      } else {
+        trail.push({ x, y, life: 1.05 });
+      }
       mpTrails.set(id, trail);
     }
     for (const id of mpTrails.keys()) {
@@ -1644,6 +1786,7 @@ function stopMultiplayer() {
   difficultySelect.value = getSelectedDifficultyId();
   currentRunCountsForProgress = true;
   state = "idle";
+  updatePauseButton();
   score = 0;
 }
 
@@ -1835,6 +1978,8 @@ editorPlayBtn.addEventListener("click", () => {
   startGame();
 });
 
+pauseBtn.addEventListener("click", togglePause);
+
 roomCreateBtn.addEventListener("click", () => {
   void createRoom();
 });
@@ -1873,6 +2018,7 @@ document.addEventListener("fullscreenchange", () => {
 function hardReset() {
   state = "idle";
   score = 0;
+  runCoins = 0;
   localClears = 0;
   localDistance = 0;
   applyDifficultySettings();
@@ -1888,11 +2034,14 @@ function hardReset() {
   hold = false;
   currentRunCountsForProgress = true;
   showOverlay("Press Space To Start", "Avoid randomized hazards and earn points to buy styles.");
+  updatePauseButton();
 }
 
 function startGame() {
   state = "running";
   score = 0;
+  runCoins = 0;
+  clickCount = 0;
   localClears = 0;
   currentRunCountsForProgress = !isCustomMapRun();
   const isPublicLive =
@@ -1922,11 +2071,43 @@ function startGame() {
     world.obstacles = editorLevel.map((o) => ({ ...o, scored: false }));
   }
   hideOverlay();
+  updatePauseButton();
+}
+
+function canPause() {
+  return !mpEnabled && (state === "running" || state === "paused");
+}
+
+function updatePauseButton() {
+  if (!pauseBtn) return;
+  const available = canPause();
+  pauseBtn.disabled = !available;
+  pauseBtn.textContent = state === "paused" ? "Resume" : "Pause";
+}
+
+function togglePause() {
+  if (mpEnabled) {
+    mpStatus.textContent = "Pause is unavailable during a live multiplayer race.";
+    return;
+  }
+  if (state === "running") {
+    safelyPauseInput();
+    state = "paused";
+    showOverlay("Paused", "Press P, Esc, Space, or tap to resume.");
+  } else if (state === "paused") {
+    state = "running";
+    hideOverlay();
+  } else {
+    return;
+  }
+  updatePauseButton();
 }
 
 function prepareRaceStart() {
   state = "idle";
   score = 0;
+  runCoins = 0;
+  clickCount = 0;
   localClears = 0;
   localDistance = 0;
   world.obstacles = [];
@@ -1993,6 +2174,8 @@ function updateLeaderboard() {
 
 function lose() {
   state = "dead";
+  updatePauseButton();
+  clickCount = 0;
   const rounded = Math.floor(score);
   applyRunResult(rounded);
   if (currentRunCountsForProgress) {
@@ -2016,14 +2199,23 @@ function lose() {
     localDistance = 0;
   }
   if (mpEnabled && mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
-    showOverlay("Crashed", `Score ${rounded}. Wait for the room owner to start the next race.`);
+    showOverlay(
+      "Crashed",
+      `Score ${rounded}. Final Run Coins: ${Math.floor(runCoins)}. Wait for the room owner to start the next race.`
+    );
     return;
   }
   if (mpEnabled && mpRoomId === MULTI_PUBLIC_ROOM_ID) {
-    showOverlay("Crashed", `Score ${rounded}. Press Space or tap to re-enter the race.`);
+    showOverlay(
+      "Crashed",
+      `Score ${rounded}. Final Run Coins: ${Math.floor(runCoins)}. Press Space or tap to re-enter the race.`
+    );
     return;
   }
-  showOverlay("Crashed", `Score ${rounded}. Press Space or click to restart.`);
+  showOverlay(
+    "Crashed",
+    `Score ${rounded}. Final Run Coins: ${Math.floor(runCoins)}. Press Space or click to restart.`
+  );
 }
 
 function rand(min, max) {
@@ -2237,6 +2429,18 @@ function corridorGapAt(obstacle, xPos) {
   return { center, gap: obstacle.gap };
 }
 
+function isTypingTarget(target) {
+  return target instanceof HTMLElement && (
+    target.matches("input, textarea, select") || target.isContentEditable
+  );
+}
+function isUiModalOpen() {
+  return !authModal.classList.contains("hidden") || !roomModal.classList.contains("hidden");
+}
+function safelyPauseInput() {
+  hold = false;
+  activeFlyKeys.clear();
+}
 function update(dt) {
   if (mpEnabled && mpPlayerRef) {
     mpSendCooldown -= dt * 1000;
@@ -2268,6 +2472,10 @@ function update(dt) {
     }
   }
 
+  if (isUiModalOpen()) {
+    safelyPauseInput();
+    return;
+  }
   if (mpEnabled && world.awaitingRaceStart) {
     if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
       world.awaitingRaceStart = false;
@@ -2296,6 +2504,10 @@ function update(dt) {
     }
     if (state === "dead") {
       resetWorldMotion();
+      for (const trail of mpTrails.values()) {
+        for (const p of trail) p.life -= dt;
+        while (trail.length > 0 && trail[0].life <= 0) trail.shift();
+      }
     }
     return;
   }
@@ -2355,6 +2567,11 @@ function update(dt) {
         if (obstacleRightEdge(lastObstacle) < player.x - player.r) {
           lastObstacle.scored = true;
         }
+      }
+      const lastPickup = world.pickups[world.pickups.length - 1];
+      if (lastPickup && lastPickup.spawnT !== undefined) {
+        const pickupDistThen = computeSharedDistance(lastPickup.spawnT);
+        lastPickup.x = (lastPickup.spawnX || PICKUP_SPAWN_X) - (distNow - pickupDistThen);
       }
       world.spawnIndex += 1;
     }
@@ -2469,6 +2686,7 @@ function update(dt) {
     const pickup = world.pickups[i];
     if (distSq(player.x, player.y, pickup.x, pickup.y) <= (player.r + pickup.r) ** 2) {
       score += pickup.value;
+      runCoins += pickup.value;
       if (currentRunCountsForProgress) {
         shopMsg.textContent = `Coin +${pickup.value} score`;
       }
@@ -2862,10 +3080,10 @@ function drawOtherPlayers() {
 }
 
 function getRemoteRenderX(data) {
-  if (mpRoomId === MULTI_PUBLIC_ROOM_ID) {
+  const remoteDist = Number(data?.dist);
+  if (!Number.isFinite(remoteDist)) {
     return clamp(Number(data?.x ?? player.x), -80, W + 80);
   }
-  const remoteDist = Number(data?.dist || 0);
   const delta = remoteDist - localDistance;
   return clamp(player.x + delta, -80, W + 80);
 }
@@ -3234,11 +3452,21 @@ function drawUi() {
   scoreEl.textContent = String(Math.floor(score));
   speedEl.textContent = `${world.speedScale.toFixed(2)}x`;
   coinsEl.textContent = String(profile.coins);
+  runCoinsEl.textContent = String(Math.floor(runCoins));
+  fpsCountEl.textContent = String(fpsDisplay);
+  clickCountEl.textContent = String(clickCount);
 }
 
 function render(t) {
   const dt = Math.min(0.033, (t - last) / 1000);
   last = t;
+  fpsSampleElapsed += dt;
+  fpsSampleFrames += 1;
+  if (fpsSampleElapsed >= 0.25) {
+    fpsDisplay = Math.round(fpsSampleFrames / fpsSampleElapsed);
+    fpsSampleElapsed = 0;
+    fpsSampleFrames = 0;
+  }
 
   update(dt);
   drawBackground(t);
@@ -3262,12 +3490,22 @@ function hideOverlay() {
   overlay.classList.add("hidden");
 }
 
+
+
 function onPress() {
+  if (isUiModalOpen()) return;
   enableMusicFromGesture();
   if (editorEnabled && editorArmed) return;
-  // In private rooms, only the race start countdown triggers startGame — not the player pressing.
+  if (state === "paused") {
+    togglePause();
+    return;
+  }
+  clickCount += 1;
+  // In private rooms, only the race start countdown triggers startGame â€” not the player pressing.
   if (mpEnabled && mpRoomId && mpRoomId !== MULTI_PUBLIC_ROOM_ID) {
     hold = true;
+    player.vy = -world.scroll;
+    player.y = Math.max(player.r, player.y - Math.max(8, world.scroll * 0.02));
     return;
   }
   // In public rooms after dying, pressing restarts as a free-fly spectator from current position.
@@ -3284,16 +3522,22 @@ function onPress() {
     localDistance = 0;
     localClears = 0;
     score = 0;
+    runCoins = 0;
     trailPoints.length = 0;
+    mpTrails.clear();
     player.y = H * 0.5;
     player.vy = 0;
     currentRunCountsForProgress = true;
     state = "running";
     hideOverlay();
+    player.vy = -world.scroll;
+    player.y = Math.max(player.r, player.y - Math.max(8, world.scroll * 0.02));
     return;
   }
-  hold = true;
   if (state === "idle" || state === "dead") startGame();
+  hold = true;
+  player.vy = -world.scroll;
+  player.y = Math.max(player.r, player.y - Math.max(8, world.scroll * 0.02));
 }
 
 function onRelease() {
@@ -3301,15 +3545,27 @@ function onRelease() {
 }
 
 window.addEventListener("keydown", (e) => {
-  if (e.code === "Space") {
+  if (isUiModalOpen()) return;
+  if ((e.code === "KeyP" || e.code === "Escape") && !isTypingTarget(e.target)) {
     e.preventDefault();
-    onPress();
+    if (!e.repeat) togglePause();
+    return;
   }
+  if (isTypingTarget(e.target)) return;
+  if (!isFlyKey(e.code)) return;
+  e.preventDefault();
+  if (e.repeat || activeFlyKeys.has(e.code)) return;
+  activeFlyKeys.add(e.code);
+  onPress();
 });
 window.addEventListener("keyup", (e) => {
-  if (e.code === "Space") onRelease();
+  if (!isFlyKey(e.code)) return;
+  activeFlyKeys.delete(e.code);
+  if (activeFlyKeys.size === 0) onRelease();
 });
 canvas.addEventListener("pointerdown", (e) => {
+  if (!e.isPrimary || e.button !== 0) return;
+  canvas.setPointerCapture?.(e.pointerId);
   // Editor placement takes priority when armed.
   if (editorEnabled && editorArmed) {
     const rect = canvas.getBoundingClientRect();
@@ -3330,9 +3586,18 @@ overlay.addEventListener("pointerdown", (e) => {
 });
 window.addEventListener("pointerup", onRelease);
 window.addEventListener("pointercancel", onRelease);
-window.addEventListener("blur", onRelease);
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) safelyPauseInput();
+});
+window.addEventListener("blur", () => {
+  activeFlyKeys.clear();
+  onRelease();
+});
 mobileFlyBtn.addEventListener("pointerdown", (e) => {
+  if (!e.isPrimary || e.button !== 0) return;
   e.preventDefault();
+  mobileFlyBtn.setPointerCapture?.(e.pointerId);
   onPress();
 });
 mobileFlyBtn.addEventListener("pointerup", onRelease);
@@ -3349,7 +3614,8 @@ selectedDifficultyId = normalizeDifficultyId(selectedDifficultyId);
 difficultySelect.value = selectedDifficultyId;
 refreshShopUi();
 updateOnlineCount();
-startPresence();
+subscribeLeaderboard();
+startPresence(uid);
 setEditorPanelVisible(false);
 if (versionText) versionText.textContent = `v${SITE_VERSION}`;
 updateAdCopy();
@@ -3358,4 +3624,42 @@ if (musicEnabled) {
   musicToggleBtn.textContent = "Music: On";
 }
 hardReset();
+updatePauseButton();
 requestAnimationFrame(render);
+
+// Write a heartbeat to presence/{id} every 4 seconds so this player
+// shows up in the online count even during solo play.
+function startPresence(uidValue = uid) {
+  if (!rtdb) return;
+  if (!uidValue) {
+    stopPresence();
+    return;
+  }
+
+  if (presencePingTimer) {
+    clearInterval(presencePingTimer);
+    presencePingTimer = null;
+  }
+
+  presenceRef = dbRef(rtdb, `presence/${uidValue}`);
+
+  function ping() {
+    void dbUpdate(presenceRef, {
+      lastSeen: rtdbServerTimestamp(),
+      online: true,
+      name: sanitizePlayerName(auth?.currentUser?.displayName || auth?.currentUser?.email || uidValue)
+    });
+  }
+
+  // Small delay avoids a burst right at startup/auth transition.
+  setTimeout(() => {
+    if (!presenceRef) return;
+    ping();
+  }, 750);
+
+  // heartbeat
+  presencePingTimer = setInterval(ping, 4000);
+
+  // cleanup on exit
+  onDisconnect(presenceRef).remove();
+}
