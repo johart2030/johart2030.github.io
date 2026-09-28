@@ -895,6 +895,26 @@ select.input {
     }
 }
 
+.game-leaderboard {
+    margin-top: 24px;
+    padding: 22px;
+}
+.game-leaderboard-body {
+    color: var(--muted);
+}
+.game-leaderboard .leaderboard-row {
+    margin-top: 0;
+}
+@media (max-width: 560px) {
+    .game-leaderboard {
+        padding: 16px;
+    }
+    .game-leaderboard .leaderboard-head {
+        align-items: flex-start;
+        gap: 12px;
+    }
+}
+
 /* Comfortable controls and layout on phones, tablets, and installed web apps. */
 @media (max-width: 700px) {
     body {

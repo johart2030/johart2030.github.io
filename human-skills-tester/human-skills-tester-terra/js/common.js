@@ -108,6 +108,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     if (new Set(['number', 'pi', 'typing', 'reaction', 'aim', 'sequence', 'visual', 'math']).has(page))
         import('./game-integrity.js').catch(error => console.warn('Game integrity unavailable', error));
+    if (new Set(['number', 'pi', 'typing', 'reaction', 'aim', 'sequence', 'visual', 'math']).has(page))
+        import('./game-leaderboard.js').catch(error => console.warn('Game leaderboard unavailable', error));
     renderHomeScores();
 });
 window.addEventListener('hst:scores-changed', renderHomeScores);
