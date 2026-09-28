@@ -54,11 +54,11 @@ function act() {
     }
 }
 zone.addEventListener('click', act);
-zone.addEventListener('keydown', event => {
-    if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        act();
-    }
+document.addEventListener('keydown', event => {
+    if (event.repeat || (event.code !== 'Space' && event.key !== 'Enter')) return;
+    if (event.target.matches('input, textarea, select, [contenteditable="true"]')) return;
+    event.preventDefault();
+    act();
 });
 showBest();
 window.addEventListener('hst:scores-changed', showBest);

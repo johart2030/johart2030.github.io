@@ -1,6 +1,6 @@
 import { auth, rtdb, ref, get, onValue, onDisconnect, update, set, runRTDBTransaction, rtdbTimestamp, profileFor, onAuthStateChanged } from './firebase.js';const $ = selector => document.querySelector(selector);
 const roomId = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
-let user = null, profile = null, room = null, serverOffset = 0, activeRound = 0, gameStarted = false, finished = false, timer = null, started = 0, score = 0, solution = 0, advancingRound = 0;
+let user = null, profile = null, room = null, serverOffset = 0, activeRound = 0, gameStarted = false, finished = false, timer = null, started = 0, score = 0, solution = 0, advancingRound = 0, reactionKeyHandler = null;
 function waitForAuth() {
     return new Promise(resolve => {
         if (auth.currentUser)
@@ -223,7 +223,7 @@ function reaction(current) {
         zone.className = 'reaction-zone ready';
         zone.innerHTML = '<span><strong class="readout">Tap!</strong><small>Now</small></span>';
     }, delay);
-    zone.onclick = () => {
+    const react = () => {
         if (finished)
             return;
         if (!ready) {
@@ -235,6 +235,14 @@ function reaction(current) {
             finishRound(milliseconds, `${milliseconds} ms`);
         }
     };
+    zone.onclick = react;
+    reactionKeyHandler = event => {
+        if (event.repeat || (event.code !== 'Space' && event.key !== 'Enter')) return;
+        if (event.target.matches('input, textarea, select, [contenteditable="true"]')) return;
+        event.preventDefault();
+        react();
+    };
+    document.addEventListener('keydown', reactionKeyHandler);
 }
 function seeded(seed) {
     let value = (seed || 1) % 2147483647;
@@ -309,6 +317,10 @@ function disableGame() {
     document.querySelectorAll('#game button,#game input,#game textarea').forEach(element => element.disabled = true);
 }
 function clearCurrentGame() {
+    if (reactionKeyHandler) {
+        document.removeEventListener('keydown', reactionKeyHandler);
+        reactionKeyHandler = null;
+    }
     if (timer) {
         clearTimeout(timer);
         clearInterval(timer);
