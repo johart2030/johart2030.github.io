@@ -33,11 +33,15 @@
       </div>
     </nav>
   </header>
+  <aside class="pi-score-reset-notice" role="status">
+    <strong>Pi leaderboard reset coming soon</strong>
+    <span>To keep rankings fair while we improve cheat prevention, current Pi leaderboard scores will be reset soon. Personal practice records stay on your device.</span>
+  </aside>
   <main>
     <section class="game-heading">
       <p class="eyebrow">Memory · Pi Day inspired</p>
       <h1>Pi Memory</h1>
-      <p>Each successful round adds one more character of π. Start fresh at 3.14 or resume from your personal-best checkpoint. Copying and pasting are disabled.</p>
+      <p>Each successful round adds one more character of π. Start fresh at 3.14 or resume from your personal-best checkpoint. Copying and pasting are disabled. Leave the challenge window and the run continues as practice, but cannot enter the public leaderboard.</p>
     </section>
     <section class="game-panel pi-panel">
       <div class="pi-progress" aria-label="Current round">
@@ -57,6 +61,15 @@
         <button id="continueBest" class="button secondary" type="button" disabled>Continue at personal best</button>
       </div>
       <p id="continueHint" class="message pi-continue-hint">Reach 5 characters to unlock a faster restart.</p>
+      <p id="integrityStatus" class="message" aria-live="polite">Leaderboard eligible while this challenge stays in the foreground.</p>
+      <aside id="integrityDecision" class="integrity-decision" role="alertdialog" aria-modal="true" aria-labelledby="integrityDecisionTitle" hidden>
+        <h2 id="integrityDecisionTitle">Leaderboard check</h2>
+        <p id="integrityDecisionMessage">This run needs a decision before it can continue.</p>
+        <div class="controls">
+          <button id="endRankedRun" class="button secondary" type="button">End this run</button>
+          <button id="continuePracticeRun" class="button" type="button">Continue as practice</button>
+        </div>
+      </aside>
       <p class="best-line">Personal best: <strong id="best">0 characters</strong>
     </p>
   </section>

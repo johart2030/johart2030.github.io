@@ -1,4 +1,4 @@
-const CACHE = 'hst-terra-v8';
+const CACHE = 'hst-terra-v11';
 
 const CORE = [
   './',
@@ -12,6 +12,7 @@ const CORE = [
   './js/pi-memory.js',
   './js/typing.js',
   './js/game-integrity.js',
+  './js/game-leaderboard.js',
   './js/admin.js',
   './offline.html',
   './manifest.webmanifest',

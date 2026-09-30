@@ -10,6 +10,7 @@ const HST = {
         pi: 'hst_pi_best'
     },
     lowerIsBetter: new Set(['reaction', 'aim']),
+    scoreApprovals: new Map(),
     get(key, fallback = null) {
         const value = localStorage.getItem(this.keys[key]);
         if (value === null)
@@ -33,6 +34,20 @@ const HST = {
             return true;
         }
         return false;
+    },
+    approveScore(key, value, evidence = {}) {
+        if (!Object.hasOwn(this.keys, key) || !Number.isFinite(Number(value))) return;
+        this.scoreApprovals.set(key, {
+            value: Number(value),
+            evidence,
+            expiresAt: Date.now() + 15000
+        });
+    },
+    consumeScoreApproval(key, value) {
+        const approval = this.scoreApprovals.get(key);
+        this.scoreApprovals.delete(key);
+        if (!approval || approval.expiresAt < Date.now() || approval.value !== Number(value)) return null;
+        return approval.evidence;
     },
     completedCount() {
         return Object.keys(this.keys).filter(key => this.get(key) !== null).length;

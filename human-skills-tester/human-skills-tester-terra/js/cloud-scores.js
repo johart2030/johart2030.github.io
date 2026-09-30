@@ -8,13 +8,14 @@ function better(key, a, b) {
         return a;
     return HST.lowerIsBetter.has(key) ? Math.min(a, b) : Math.max(a, b);
 }
-async function publish(key, value) {
+async function publish(key, value, integrity = null) {
     if (!currentUser || currentUser.isAnonymous)
         return;
     await setDoc(boardDoc(key, currentUser.uid), {
         uid: currentUser.uid,
         displayName: currentProfile?.displayName || currentUser.displayName || 'Player',
         value: Number(value),
+        integrity,
         updatedAt: serverTimestamp()
     }, {
         merge: true
@@ -45,7 +46,8 @@ async function syncScores(user) {
                     }, {
                         merge: true
                     });
-                await publish(key, merged);
+                // A device score is private until it is earned in this browser session.
+                // This prevents edited localStorage values from being promoted on sign-in.
             }
         }
         document.documentElement.dataset.scoreSync = 'ready';
@@ -73,12 +75,15 @@ const original = HST.setBest.bind(HST);
 HST.setBest = (key, value, lower = HST.lowerIsBetter.has(key)) => {
     const won = original(key, value, lower);
     if (won && currentUser) {
+        const integrity = HST.consumeScoreApproval(key, value);
         setDoc(scoreDoc(currentUser.uid, key), {
             value: Number(value),
             updatedAt: serverTimestamp()
         }, {
             merge: true
-        }).then(() => publish(key, value)).catch(console.error);
+        }).then(() => {
+            if (key !== 'pi' || integrity) return publish(key, value, integrity);
+        }).catch(console.error);
     }
     return won;
 };

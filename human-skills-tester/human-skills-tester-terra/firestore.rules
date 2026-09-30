@@ -29,7 +29,11 @@ service cloud.firestore {
       allow update, delete: if permanent() && resource.data.uid == request.auth.uid;
     }
     match /publicProfiles/{uid} { allow read: if true; allow create, update, delete: if owner(uid) || admin(); }
-    match /leaderboards/{test}/entries/{uid} { allow read: if true; allow create, update, delete: if owner(uid); }
+    match /leaderboards/{test}/entries/{uid} {
+      allow read: if true;
+      allow create, update: if owner(uid) && (test != "pi" || request.resource.data.integrity.status == "client_verified");
+      allow delete: if owner(uid);
+    }
     match /friendships/{id} {
       allow get: if participant(resource.data);
       allow list: if permanent() && request.auth.uid in resource.data.members;

@@ -13,6 +13,7 @@ const boards = {
 
 const key = document.body.dataset.page;
 const board = boards[key];
+let piMode = 'verified';
 
 function row(rank, entry, board) {
     const item = document.createElement('div');
@@ -41,23 +42,38 @@ async function mount() {
     section.className = 'game-leaderboard leaderboard-card';
     section.setAttribute('aria-labelledby', 'gameLeaderboardTitle');
     section.innerHTML = `<div class="leaderboard-head"><div><p class="eyebrow">Global rankings</p><h2 id="gameLeaderboardTitle">${board.name} leaderboard</h2></div><a class="button secondary" href="leaderboards.html">All leaderboards</a></div>`;
+    if (key === 'pi') {
+        const mode = document.createElement('div');
+        mode.className = 'leaderboard-mode';
+        mode.innerHTML = '<button type="button" data-pi-mode="verified" class="active">Verified ranked runs</button><button type="button" data-pi-mode="all">All recorded runs</button><p>Only verified runs are ranked.</p>';
+        section.append(mode);
+    }
     const body = document.createElement('div');
     body.className = 'game-leaderboard-body';
     body.textContent = 'Loading top scores…';
     section.append(body);
     panel.insertAdjacentElement('afterend', section);
+    const load = async () => {
+        body.textContent = 'Loading top scores…';
+        section.querySelectorAll('[data-pi-mode]').forEach(button => button.classList.toggle('active', button.dataset.piMode === piMode));
+        const modeNote = section.querySelector('.leaderboard-mode p');
+        if (modeNote) modeNote.textContent = piMode === 'verified' ? 'Only verified runs are ranked.' : 'All recorded runs are shown; legacy entries are not ranked.';
     try {
-        const snapshot = await getDocs(query(collection(db, 'leaderboards', key, 'entries'), orderBy('value', board.lower ? 'asc' : 'desc'), limit(10)));
+        const snapshot = await getDocs(query(collection(db, 'leaderboards', key, 'entries'), orderBy('value', board.lower ? 'asc' : 'desc'), limit(100)));
         body.replaceChildren();
-        if (snapshot.empty) {
-            body.textContent = 'No ranked scores yet. Sign in and finish this test to claim the first spot.';
+        const entries = snapshot.docs.filter(document => key !== 'pi' || piMode === 'all' || document.data().integrity?.status === 'client_verified');
+        if (!entries.length) {
+            body.textContent = key === 'pi' && piMode === 'verified' ? 'No verified Pi scores yet. Complete a clean run to claim the first spot.' : 'No ranked scores yet. Sign in and finish this test to claim the first spot.';
             return;
         }
-        snapshot.docs.forEach((document, index) => body.append(row(index + 1, document.data(), board)));
+        entries.slice(0, 10).forEach((document, index) => body.append(row(index + 1, document.data(), board)));
     } catch (error) {
         body.textContent = 'Leaderboard is unavailable right now. Please try again shortly.';
         console.warn('Could not load game leaderboard', error);
     }
+    };
+    section.querySelectorAll('[data-pi-mode]').forEach(button => button.addEventListener('click', () => { piMode = button.dataset.piMode; load(); }));
+    await load();
 }
 
 mount();

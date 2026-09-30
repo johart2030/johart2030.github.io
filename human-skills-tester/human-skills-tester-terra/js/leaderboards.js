@@ -37,6 +37,7 @@ const tests = {
     }
 };
 let selected = 'reaction';
+let piMode = 'verified';
 const $ = s => document.querySelector(s), escape = v => String(v).replace(/[&<>'"]/g, c => ({
     '&': '&amp;',
     '<': '&lt;',
@@ -49,14 +50,19 @@ async function load(key) {
     document.querySelectorAll('[data-board]').forEach(b => b.classList.toggle('active', b.dataset.board === key));
     const test = tests[key], body = $('#leaderboardBody');
     $('#boardTitle').textContent = test.name;
+    const mode = $('#piLeaderboardMode');
+    mode.hidden = key !== 'pi';
+    document.querySelectorAll('[data-pi-mode]').forEach(button => button.classList.toggle('active', button.dataset.piMode === piMode));
+    $('#piLeaderboardModeNote').textContent = piMode === 'verified' ? 'Only runs completed under the current anti-cheat rules are ranked.' : 'All recorded runs are shown here. Legacy and unverified runs are not ranked.';
     body.innerHTML = '<div class="leaderboard-loading">Loading rankings…</div>';
     try {
         const q = query(collection(db, 'leaderboards', key, 'entries'), orderBy('value', test.lower ? 'asc' : 'desc'), limit(100)), snap = await getDocs(q);
-        if (snap.empty) {
-            body.innerHTML = '<div class="empty-state"><h3>No ranked scores yet</h3><p>Sign in and complete this test to claim the first spot.</p></div>';
+        const entries = snap.docs.filter(document => key !== 'pi' || piMode === 'all' || document.data().integrity?.status === 'client_verified');
+        if (!entries.length) {
+            body.innerHTML = `<div class="empty-state"><h3>${key === 'pi' && piMode === 'verified' ? 'No verified Pi scores yet' : 'No ranked scores yet'}</h3><p>Sign in and complete this test to claim the first spot.</p></div>`;
             return;
         }
-        body.innerHTML = snap.docs.map((d, i) => {
+        body.innerHTML = entries.map((d, i) => {
             const x = d.data(), value = test.format ? test.format(Number(x.value)) : Number(x.value);
             return `<div class="leaderboard-row"><strong class="rank">${i + 1}</strong><span class="leader-name">${escape(x.displayName || 'Player')}</span><strong class="leader-score">${value} <small>${test.unit}</small></strong></div>`;
         }).join('');
@@ -66,4 +72,8 @@ async function load(key) {
     }
 }
 document.querySelectorAll('[data-board]').forEach(b => b.onclick = () => load(b.dataset.board));
+document.querySelectorAll('[data-pi-mode]').forEach(button => button.onclick = () => {
+    piMode = button.dataset.piMode;
+    load('pi');
+});
 load(selected);

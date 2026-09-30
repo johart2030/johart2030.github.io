@@ -51,7 +51,10 @@ function renderLogs() {
         logList.textContent = 'No tab-switch logs yet.';
         return;
     }
-    logs.forEach(log => logList.append(row(`${log.game || 'game'} · ${log.type || 'event'}`, `${log.ownerLabel || 'Unknown account'} · ${formatTime(log.occurredAt)}`)));
+    logs.forEach(log => {
+        const detail = log.type === 'integrity_flag' ? ` · ${log.details?.reason || 'suspicious activity'}` : '';
+        logList.append(row(`${log.game || 'game'} · ${log.type || 'event'}${detail}`, `${log.ownerLabel || 'Unknown account'} · ${formatTime(log.occurredAt)}`));
+    });
 }
 async function resolveLogOwners() {
     const knownUsers = new Map(users.map(user => [user.id, user]));
@@ -108,7 +111,7 @@ async function loadAdminData() {
         document.getElementById('userCount').textContent = String(users.length);
         renderUsers();
         try {
-            const logSnapshot = await getDocs(query(collectionGroup(db, 'entries'), where('type', '==', 'tab_hidden'), limit(200)));
+            const logSnapshot = await getDocs(query(collectionGroup(db, 'entries'), where('type', 'in', ['tab_hidden', 'integrity_flag']), limit(200)));
             logs = logSnapshot.docs.map(snapshot => {
                 const path = snapshot.ref.path.split('/');
                 return {
@@ -117,11 +120,11 @@ async function loadAdminData() {
                     uid: path[3],
                     ...snapshot.data()
                 };
-            }).sort((a, b) => (b.occurredAt?.seconds || 0) - (a.occurredAt?.seconds || 0));
+            }).filter(log => ['tab_hidden', 'integrity_flag'].includes(log.type)).sort((a, b) => (b.occurredAt?.seconds || 0) - (a.occurredAt?.seconds || 0));
             await resolveLogOwners();
             document.getElementById('logCount').textContent = String(logs.length);
             renderLogs();
-            status.textContent = 'Administrator access verified. The console shows the latest 200 accounts and potential-cheating tab switches.';
+            status.textContent = 'Administrator access verified. The console shows recent potential-cheating tab switches and integrity flags.';
         }
         catch (error) {
             logs = [];
