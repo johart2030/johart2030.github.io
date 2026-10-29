@@ -1,4 +1,4 @@
-const CACHE = 'hst-terra-v11';
+const CACHE = 'hst-terra-v12';
 
 const CORE = [
   './',

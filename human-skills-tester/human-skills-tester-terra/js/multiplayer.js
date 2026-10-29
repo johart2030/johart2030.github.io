@@ -39,6 +39,7 @@ async function requirePlayer() {
     return true;
 }
 function newPlayer(existing = {}) {
+    const reactionBest = HST.get('reaction');
     return {
         name: profile.displayName,
         ready: existing.ready ?? false,
@@ -46,6 +47,7 @@ function newPlayer(existing = {}) {
         score: 0,
         wins: existing.wins ?? 0,
         connected: true,
+        previousReaction: Number.isFinite(reactionBest) ? reactionBest : null,
         joinedAt: existing.joinedAt ?? rtdbTimestamp(),
         lastSeen: rtdbTimestamp()
     };
@@ -158,7 +160,10 @@ async function watchRoom(id) {
 async function renderRoom(room) {
     const players = Object.entries(room.players || {}), rounds = Number(room.rounds || 1);
     $('#roomFormat').textContent = `${rounds} ${rounds === 1 ? 'round' : 'rounds'} · ${formatGame(room.type)}`;
-    $('#players').innerHTML = players.map(([uid, p]) => `<div class="player-row"><span class="player-identity"><i class="presence-dot ${p.connected ? 'online' : 'offline'}"></i>${escapeHtml(p.name)}${uid === user.uid ? ' <small>(you)</small>' : ''}</span><strong>${p.ready ? 'Ready' : 'Not ready'}</strong></div>`).join('');
+    $('#players').innerHTML = players.map(([uid, p]) => {
+        const reaction = typeof p.previousReaction === 'number' ? ` · Previous reaction: ${p.previousReaction} ms` : '';
+        return `<div class="player-row"><span class="player-identity"><i class="presence-dot ${p.connected ? 'online' : 'offline'}"></i>${escapeHtml(p.name)}${uid === user.uid ? ' <small>(you)</small>' : ''}${room.type === 'reaction' ? `<small>${reaction}</small>` : ''}</span><strong>${p.ready ? 'Ready' : 'Not ready'}</strong></div>`;
+    }).join('');
     $('#ready').disabled = players.length < 2 || room.status !== 'waiting';
     $('#ready').textContent = room.players?.[user.uid]?.ready ? 'Ready ✓' : 'Ready';
     if (room.status === 'waiting' && room.host === user.uid && players.length >= 2 && players.every(([, p]) => p.ready) && !startLock) {
@@ -207,7 +212,9 @@ function formatGame(type) {
     return {
         reaction: 'Reaction Duel',
         math: 'Math Race',
-        typing: 'Typing Race'
+        typing: 'Typing Race',
+        sequence: 'Sequence Sprint',
+        aim: 'Aim Dash'
     }[type] || type;
 }
 function escapeHtml(value) {

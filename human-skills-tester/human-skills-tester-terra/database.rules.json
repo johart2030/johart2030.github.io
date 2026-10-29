@@ -49,9 +49,9 @@
       ".read": "auth != null && auth.token.firebase.sign_in_provider !== 'anonymous'",
       "$roomId": {
         ".write": "auth != null && auth.token.firebase.sign_in_provider !== 'anonymous'",
-        ".validate": "!newData.exists() || (newData.hasChildren(['type', 'rounds', 'createdAt']) && (newData.child('type').val() === 'reaction' || newData.child('type').val() === 'math' || newData.child('type').val() === 'typing') && newData.child('rounds').isNumber() && newData.child('createdAt').isNumber())",
+        ".validate": "!newData.exists() || (newData.hasChildren(['type', 'rounds', 'createdAt']) && (newData.child('type').val() === 'reaction' || newData.child('type').val() === 'math' || newData.child('type').val() === 'typing' || newData.child('type').val() === 'sequence' || newData.child('type').val() === 'aim') && newData.child('rounds').isNumber() && newData.child('createdAt').isNumber())",
         "type": {
-          ".validate": "newData.val() === 'reaction' || newData.val() === 'math' || newData.val() === 'typing'"
+          ".validate": "newData.val() === 'reaction' || newData.val() === 'math' || newData.val() === 'typing' || newData.val() === 'sequence' || newData.val() === 'aim'"
         },
         "rounds": {
           ".validate": "newData.isNumber() && (newData.val() === 1 || newData.val() === 3 || newData.val() === 5 || newData.val() === 7 || newData.val() === 10)"
@@ -73,7 +73,7 @@
           ".validate": "newData.isString() && newData.val() === $roomId"
         },
         "type": {
-          ".validate": "newData.val() === 'reaction' || newData.val() === 'math' || newData.val() === 'typing'"
+          ".validate": "newData.val() === 'reaction' || newData.val() === 'math' || newData.val() === 'typing' || newData.val() === 'sequence' || newData.val() === 'aim'"
         },
         "rounds": {
           ".validate": "newData.isNumber() && (newData.val() === 1 || newData.val() === 3 || newData.val() === 5 || newData.val() === 7 || newData.val() === 10)"
@@ -122,6 +122,9 @@
             },
             "finishedAt": {
               ".validate": "!newData.exists() || newData.isNumber()"
+            },
+            "previousReaction": {
+              ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000)"
             },
             "$other": {
               ".validate": false

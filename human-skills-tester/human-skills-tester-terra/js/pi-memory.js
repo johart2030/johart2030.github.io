@@ -181,7 +181,7 @@ form.addEventListener('submit', event => {
         finishGame();
         return;
     }
-    approvePiScore(level);
+    if (!approvePiScore(level)) return;
     HST.setBest('pi', level);
     sessionBest = level;
     HST.logGameEvent('round_completed', {

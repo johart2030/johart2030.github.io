@@ -102,7 +102,9 @@ async function boot() {
     $('#battleTitle').textContent = ({
         reaction: 'Reaction Duel',
         math: 'Math Race',
-        typing: 'Typing Race'
+        typing: 'Typing Race',
+        sequence: 'Sequence Sprint',
+        aim: 'Aim Dash'
     })[room.type] || 'Live Match';
     onValue(ref(rtdb, `rooms/${roomId}`), snapshot => {
         if (!snapshot.exists())
@@ -143,7 +145,11 @@ function renderRoundHeader(current) {
 }
 function renderScoreboard(current) {
     const entries = Object.entries(current.players || {});
-    $('#battlePlayers').innerHTML = entries.map(([uid, p]) => `<div class="battle-player ${uid === user.uid ? 'is-you' : ''}"><span><i class="presence-dot ${p.connected ? 'online' : 'offline'}"></i>${escapeHtml(p.name)}${uid === user.uid ? ' <small>You</small>' : ''}</span><strong>${Number(p.wins || 0)} ${Number(p.wins || 0) === 1 ? 'win' : 'wins'}</strong><em>${p.finished ? formatRoundScore(current.type, p.score) : 'Playing'}</em></div>`).join('');
+    $('#battlePlayers').innerHTML = entries.map(([uid, p]) => {
+        const priorReaction = typeof p.previousReaction === 'number' ? `Previous: ${p.previousReaction} ms` : 'No previous reaction score';
+        const liveScore = p.finished ? formatRoundScore(current.type, p.score) : current.type === 'reaction' ? priorReaction : 'Playing';
+        return `<div class="battle-player ${uid === user.uid ? 'is-you' : ''}"><span><i class="presence-dot ${p.connected ? 'online' : 'offline'}"></i>${escapeHtml(p.name)}${uid === user.uid ? ' <small>You</small>' : ''}</span><strong>${Number(p.wins || 0)} ${Number(p.wins || 0) === 1 ? 'win' : 'wins'}</strong><em>${liveScore}</em></div>`;
+    }).join('');
 }
 function allPlayersFinished(current) {
     const players = Object.values(current.players || {});
@@ -211,6 +217,10 @@ function startGame(current) {
         math(current);
     else if (current.type === 'typing')
         typing(current);
+    else if (current.type === 'sequence')
+        sequenceSprint(current);
+    else if (current.type === 'aim')
+        aimDash(current);
 }
 function reaction(current) {
     const delay = 1200 + ((Number(current.seed) + Number(current.currentRound) * 37) % 2200);
@@ -300,6 +310,58 @@ function typing(current) {
     };
     input.focus();
 }
+function sequenceSprint(current) {
+    const random = seeded(Number(current.seed) + Number(current.currentRound) * 211);
+    const sequence = Array.from({ length: 4 + Math.min(4, Number(current.currentRound)) }, () => Math.floor(random() * 4));
+    let position = 0;
+    $('#game').innerHTML = '<p class="message">Watch the pattern, then repeat it as fast as you can.</p><div id="sequencePads" class="sequence-pads"><button data-pad="0">1</button><button data-pad="1">2</button><button data-pad="2">3</button><button data-pad="3">4</button></div>';
+    const pads = [...document.querySelectorAll('#sequencePads button')];
+    const flash = async index => {
+        pads[index].classList.add('flash');
+        await new Promise(resolve => setTimeout(resolve, 420));
+        pads[index].classList.remove('flash');
+        await new Promise(resolve => setTimeout(resolve, 140));
+    };
+    const show = async () => {
+        for (const index of sequence) await flash(index);
+        started = performance.now();
+        pads.forEach(button => button.disabled = false);
+        setStatus('Your turn — repeat the pattern.');
+    };
+    pads.forEach(button => {
+        button.disabled = true;
+        button.onclick = () => {
+            const value = Number(button.dataset.pad);
+            if (value !== sequence[position]) return finishRound(0, 'Wrong pattern');
+            position += 1;
+            if (position === sequence.length) finishRound(Math.max(1, 100000 - Math.round(performance.now() - started)), 'Pattern complete');
+        };
+    });
+    setStatus('Memorize the pattern…');
+    setTimeout(show, 550);
+}
+function aimDash(current) {
+    const random = seeded(Number(current.seed) + Number(current.currentRound) * 313);
+    const total = 10;
+    let hits = 0;
+    $('#game').innerHTML = '<p class="message">Hit 10 targets as quickly as you can.</p><div id="aimArena" class="aim-arena"><button id="aimTarget" class="aim-target" aria-label="Aim target">●</button></div>';
+    const arena = $('#aimArena'), target = $('#aimTarget');
+    const move = () => {
+        target.style.left = `${8 + random() * 76}%`;
+        target.style.top = `${8 + random() * 70}%`;
+    };
+    started = performance.now();
+    move();
+    target.onclick = () => {
+        hits += 1;
+        if (hits === total) {
+            const elapsed = Math.round(performance.now() - started);
+            finishRound(Math.max(1, 100000 - elapsed), `${(elapsed / 1000).toFixed(2)} s`);
+            return;
+        }
+        move();
+    };
+}
 async function finishRound(value, label) {
     if (finished)
         return;
@@ -368,6 +430,8 @@ function formatRoundScore(type, value) {
         return number === 9999 ? 'False start' : `${number} ms`;
     if (type === 'typing')
         return `${number} WPM`;
+    if (type === 'sequence' || type === 'aim')
+        return 'Complete';
     return `${number} correct`;
 }
 function escapeHtml(value) {

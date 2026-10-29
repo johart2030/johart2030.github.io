@@ -935,6 +935,49 @@ select.input {
     margin: 0 0 16px;
     color: var(--muted);
 }
+.sequence-pads {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(90px, 1fr));
+    gap: 12px;
+    max-width: 380px;
+    margin: 20px auto;
+}
+.sequence-pads button {
+    min-height: 100px;
+    border: 0;
+    border-radius: 18px;
+    color: #fff;
+    background: var(--primary);
+    font-size: 1.5rem;
+    font-weight: 900;
+    cursor: pointer;
+    transition: transform .12s, filter .12s;
+}
+.sequence-pads button:nth-child(2) { background: #9b51e0; }
+.sequence-pads button:nth-child(3) { background: #e05b59; }
+.sequence-pads button:nth-child(4) { background: #d99b22; }
+.sequence-pads button.flash { filter: brightness(1.65); transform: scale(1.04); }
+.aim-arena {
+    position: relative;
+    min-height: 330px;
+    margin-top: 16px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--surface-2);
+}
+.aim-target {
+    position: absolute;
+    width: 56px;
+    height: 56px;
+    border: 0;
+    border-radius: 50%;
+    color: #fff;
+    background: #e05b59;
+    font-size: 2rem;
+    cursor: crosshair;
+    transform: translate(-50%, -50%);
+}
 @media (max-width: 560px) {
     .pi-score-reset-notice {
         align-items: flex-start;
