@@ -83,6 +83,10 @@ let user,
   sun,
   pageTransition = false,
   navigationTimer;
+const A = (window.A = {
+  close() {},
+  key: null,
+});
 const GRADED = ["first", "blanks", "scramble", "multiple", "type"],
   KEY = "rf_guest";
 const gLoad = () => {
@@ -1025,7 +1029,7 @@ const MODEFN = {
 };
 
 // ---- actions ----
-const A = (window.A = {
+Object.assign(A, {
   auth() {
     stage(authMode === "up" ? "Create your account" : "Sign in", authHtml());
   },
