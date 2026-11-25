@@ -140,9 +140,9 @@
 <button id="homeBtn">🏠 Home</button>
 
 <p>
-    Click <strong>"Load folder"</strong> to select the folder containing this page,  
-    or choose / drag-and-drop your <code>.wav</code> files.  
-    Buttons will appear automatically.
+    Start this player with <strong>Run WAV Player.bat</strong> to load the WAV files
+    beside it automatically, or use <strong>Load folder</strong>, choose files, or
+    drag-and-drop <code>.wav</code> files. Buttons will appear automatically.
 </p>
 
 <div id="controls">
@@ -274,9 +274,9 @@ loadFolderBtn.addEventListener('click', async ()=>{
         if(!res.ok) return;
         const names = await res.json();
         if(!Array.isArray(names)) return;
-        names.forEach(name=>{
+        names.sort((a,b)=>a.localeCompare(b, undefined, { sensitivity:'base' })).forEach(name=>{
             if(/\.wav$/i.test(name)){
-                addButton(filenameLabel(name), './'+name, name);
+                addButton(filenameLabel(name), './'+encodeURIComponent(name), name);
             }
         });
     }catch{}
