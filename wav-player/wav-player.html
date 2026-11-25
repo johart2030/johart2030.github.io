@@ -9,156 +9,136 @@
 
 <style>
     :root{
-        --card:#ffffff;
-        --border:#e2e6ef;
-        --text:#2a2d34;
-        --muted:#6b6f76;
+        color-scheme: light;
+        --ink:#17243b;
+        --muted:#61708a;
+        --line:#dce5f2;
+        --blue:#2463eb;
+        --blue-dark:#1749bd;
+        --surface:#fff;
+        --page:#f3f7fc;
+        font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
     }
-
+    *{box-sizing:border-box}
     body{
-        font-family:system-ui,Segoe UI,Roboto,sans-serif;
-        background:linear-gradient(135deg, #08285f, #0663c0a5);
-        margin:0;
-        padding:25px;
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        color:var(--text);
         min-height:100vh;
+        margin:0;
+        padding:clamp(18px,4vw,44px) 20px 48px;
+        color:var(--ink);
+        background:
+            radial-gradient(ellipse at 12% 0%,rgba(68,132,255,.22),transparent 38rem),
+            linear-gradient(160deg,#eaf2ff 0%,var(--page) 40%,#f8faff 100%);
     }
-
-    h1{
-        font-size:32px;
-        font-weight:700;
-        margin:0 0 10px;
-        text-align:center;
-        color:#fff;
-        text-shadow:0 1px 2px rgba(0,0,0,0.15);
+    .app-shell{width:min(100%,1040px);margin:0 auto}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:44px}
+    .brand{display:flex;align-items:center;gap:11px;color:#263b5c;font-size:14px;font-weight:750;letter-spacing:.04em}
+    .brand-mark{
+        display:grid;place-items:center;width:38px;height:38px;border-radius:13px;
+        color:#fff;background:linear-gradient(145deg,#3983ff,#2454d7);
+        box-shadow:0 7px 16px rgba(36,99,235,.25);font-size:19px
     }
-
-    p{
-        max-width:700px;
-        text-align:center;
-        margin:0 0 25px;
-        color:#f0f8ff;
-        line-height:1.5;
-        text-shadow:0 1px 2px rgba(0,0,0,0.15);
+    #homeBtn,button,.file-choice{
+        min-height:44px;border:1px solid var(--line);border-radius:12px;
+        background:var(--surface);color:var(--ink);font:inherit;font-weight:650;
+        cursor:pointer;transition:background .16s ease,border-color .16s ease,box-shadow .16s ease,transform .16s ease
     }
-
-    /* Controls card */
-    #controls{
-        background:var(--card);
-        border:1px solid var(--border);
-        padding:18px;
-        border-radius:16px;
-        display:flex;
-        gap:12px;
-        align-items:center;
-        flex-wrap:wrap;
-        max-width:850px;
-        margin-bottom:25px;
-        box-shadow:0 1px 4px rgba(0,0,0,0.12);
+    #homeBtn{padding:0 16px;box-shadow:0 2px 7px rgba(26,50,87,.06)}
+    #homeBtn:hover,.file-choice:hover{border-color:#b9c9e4;background:#f7faff}
+    button:focus-visible,.file-choice:focus-within,#homeBtn:focus-visible{outline:3px solid rgba(36,99,235,.28);outline-offset:2px}
+    button:active,#homeBtn:active{transform:translateY(1px)}
+    .hero{max-width:700px;margin:0 auto 30px;text-align:center}
+    .eyebrow{margin:0 0 12px;color:var(--blue);font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+    h1{margin:0;color:#142542;font-size:clamp(38px,7vw,62px);line-height:1.02;letter-spacing:-.055em}
+    .hero-copy{max-width:580px;margin:17px auto 0;color:var(--muted);font-size:16px;line-height:1.65}
+    .panel{
+        padding:clamp(18px,3vw,28px);border:1px solid rgba(214,225,241,.9);border-radius:22px;
+        background:rgba(255,255,255,.88);box-shadow:0 18px 48px rgba(31,58,99,.09),0 2px 6px rgba(31,58,99,.04);
+        backdrop-filter:blur(10px)
     }
-
-    button, #controls span{
-        padding:10px 14px;
-        border-radius:10px;
-        border:1px solid var(--border);
-        background:#fff;
-        cursor:pointer;
-        font-weight:600;
-        transition:.15s;
-    }
-    button:hover, #controls span:hover{
-        background:#eef1ff;
-    }
-    button:active{transform:scale(.97)}
-
+    .panel-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px}
+    .panel-heading h2{margin:0;font-size:18px;letter-spacing:-.02em}
+    .panel-heading p{margin:5px 0 0;color:var(--muted);font-size:13px;line-height:1.5}
+    #controls{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap}
+    #loadFolderBtn,#clearBtn{padding:0 16px}
+    #loadFolderBtn{border-color:var(--blue);background:var(--blue);color:#fff;box-shadow:0 5px 12px rgba(36,99,235,.18)}
+    #loadFolderBtn:hover{border-color:var(--blue-dark);background:var(--blue-dark)}
+    .file-choice{display:inline-flex;align-items:center;gap:9px;padding:0 15px}
+    .file-choice span{font-size:14px}
+    #fileInput{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;clip-path:inset(50%);border:0}
+    #clearBtn{color:#465773}
+    #clearBtn:hover{border-color:#f1c5c5;background:#fff6f6;color:#a52f3b}
     #dropZone{
-        flex:1;
-        min-width:240px;
-        padding:14px;
-        border:2px dashed var(--border);
-        border-radius:12px;
-        background:#fafbff;
-        color:var(--muted);
-        transition:.15s;
+        display:flex;flex:1 1 240px;align-items:center;justify-content:center;min-height:52px;
+        padding:12px 16px;border:1.5px dashed #b9c9e2;border-radius:12px;
+        background:#f7faff;color:#667894;text-align:center;font-size:13px;font-weight:550;transition:.16s
     }
-
-    /* Grid of buttons — now auto-expands to name length */
+    .soundboard{margin-top:24px}
+    .soundboard-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 14px}
+    .soundboard-heading h2{margin:0;font-size:16px;letter-spacing:-.01em}
+    .soundboard-heading span{color:var(--muted);font-size:12px}
+    .soundboard>button{
+        display:block;margin:0 0 14px;padding:0 16px;border-color:#cad7ea;background:#eaf1fc;color:#294267
+    }
+    .soundboard>button:hover{border-color:#aabfe0;background:#e1ebfa}
     .grid{
-        display:grid;
-        grid-template-columns:repeat(auto-fit, minmax(160px, auto));
-        gap:12px;
-        width:100%;
-        max-width:900px;
+        display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));
+        align-items:stretch;gap:12px;width:100%;
     }
-
     .grid button{
-        background:var(--card);
-        border:1px solid var(--border);
-        padding:14px 18px;
-        border-radius:14px;
-        font-weight:600;
-        font-size:15px;
-        white-space:nowrap;       /* prevents wrapping */
-        width:auto;               /* expand to fit text */
-        box-shadow:0 1px 4px rgba(0,0,0,0.12);
+        display:flex;align-items:center;justify-content:center;width:100%;min-width:0;min-height:60px;
+        padding:15px 18px;border-color:#dbe5f3;border-radius:14px;background:#fff;
+        box-shadow:0 3px 9px rgba(31,58,99,.045);font-size:14px;line-height:1.45;text-align:center;
+        white-space:normal;overflow-wrap:anywhere;word-break:normal
     }
-    .grid button:hover{
-        background:#dfe8ff;
+    .grid button:hover{transform:translateY(-2px);border-color:#abc4f4;background:#f5f8ff;box-shadow:0 8px 18px rgba(36,99,235,.1)}
+    @media(max-width:600px){
+        body{padding:16px 14px 30px}
+        .topbar{margin-bottom:34px}
+        .brand{font-size:12px}
+        .panel-heading{align-items:flex-start}
+        #controls>*{flex:1 1 calc(50% - 6px)}
+        #dropZone{flex-basis:100%}
+        .grid{grid-template-columns:1fr}
+        .grid button{min-height:54px}
     }
-    #homeBtn {
-        position: fixed;
-        top: 15px;
-        right: 15px;
-        padding: 10px 14px;
-        border-radius: 10px;
-        border: 1px solid var(--border);
-        background: #fff;
-        cursor: pointer;
-        font-weight: 600;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-        transition: 0.15s;
-        z-index: 1000;
-    }
-
-    #homeBtn:hover {
-        background: #eef1ff;
-    }
-
-    #homeBtn:active {
-        transform: scale(0.97);
-    }
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
 </style>
 </head>
 
 <body>
 
-<h1>.WAV Player</h1>
+<main class="app-shell">
+    <header class="topbar">
+        <div class="brand"><span class="brand-mark" aria-hidden="true">♫</span><span>SOUND EFFECTS</span></div>
+        <button id="homeBtn" type="button">⌂ &nbsp;Home</button>
+    </header>
 
-<button id="homeBtn">🏠 Home</button>
+    <section class="hero" aria-labelledby="pageTitle">
+        <p class="eyebrow">Your cues, one tap away</p>
+        <h1 id="pageTitle">.WAV Player</h1>
+        <p class="hero-copy">Build a soundboard for your production. Load WAV files below, then tap a cue to play it.</p>
+    </section>
 
-<p>
-    Start this player with <strong>Run WAV Player.bat</strong> to load the WAV files
-    beside it automatically, or use <strong>Load folder</strong>, choose files, or
-    drag-and-drop <code>.wav</code> files. Buttons will appear automatically.
-</p>
+    <section class="panel" aria-label="Load sound effects">
+        <div class="panel-heading">
+            <div><h2>Add your sound effects</h2><p>Choose a folder or files, or drop WAV files into the area.</p></div>
+        </div>
+        <div id="controls">
+            <button id="loadFolderBtn" type="button">Load folder</button>
+            <label class="file-choice">
+                <input id="fileInput" type="file" accept=".wav,audio/wav" multiple>
+                <span>Choose .wav files</span>
+            </label>
+            <button id="clearBtn" type="button">Clear sounds</button>
+            <div id="dropZone">↧ &nbsp;Drop .wav files here</div>
+        </div>
+    </section>
 
-<div id="controls">
-    <button id="loadFolderBtn" type="button">Load folder</button>
-
-    <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
-        <input id="fileInput" type="file" accept=".wav,audio/wav" multiple style="display:none">
-        <span>Choose .wav files</span>
-    </label>
-
-    <button id="clearBtn" type="button">Clear</button>
-
-    <div id="dropZone">Or drop .wav files here</div>
-</div>
-
-<div id="buttons" class="grid" aria-label="Sound buttons"></div>
+    <section class="soundboard" aria-label="Soundboard">
+        <div class="soundboard-heading"><h2>Your soundboard</h2><span>Tap a button to play</span></div>
+        <div id="buttons" class="grid" aria-label="Sound buttons"></div>
+    </section>
+</main>
 
 <script>
 const container = document.getElementById('buttons');
