@@ -9,14 +9,14 @@
 
 <style>
     :root{
-        color-scheme: light;
-        --ink:#17243b;
-        --muted:#61708a;
-        --line:#dce5f2;
-        --blue:#2463eb;
-        --blue-dark:#1749bd;
-        --surface:#fff;
-        --page:#f3f7fc;
+        color-scheme: dark;
+        --ink:#e5edf8;
+        --muted:#91a2bd;
+        --line:#393d43;
+        --blue:#2864ed;
+        --blue-dark:#1d50c9;
+        --surface:#121314;
+        --page:#1d2023;
         font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
     }
     *{box-sizing:border-box}
@@ -26,12 +26,12 @@
         padding:clamp(18px,4vw,44px) 20px 48px;
         color:var(--ink);
         background:
-            radial-gradient(ellipse at 12% 0%,rgba(68,132,255,.22),transparent 38rem),
-            linear-gradient(160deg,#eaf2ff 0%,var(--page) 40%,#f8faff 100%);
+            radial-gradient(ellipse at 13% 10%,rgba(42,91,164,.36),transparent 42rem),
+            linear-gradient(150deg,#202a3a 0%,#1e2226 42%,#1d2023 100%);
     }
     .app-shell{width:min(100%,1040px);margin:0 auto}
     .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:44px}
-    .brand{display:flex;align-items:center;gap:11px;color:#263b5c;font-size:14px;font-weight:750;letter-spacing:.04em}
+    .brand{display:flex;align-items:center;gap:11px;color:#dce8fb;font-size:14px;font-weight:750;letter-spacing:.04em}
     .brand-mark{
         display:grid;place-items:center;width:38px;height:38px;border-radius:13px;
         color:#fff;background:linear-gradient(145deg,#3983ff,#2454d7);
@@ -39,20 +39,20 @@
     }
     #homeBtn,button,.file-choice{
         min-height:44px;border:1px solid var(--line);border-radius:12px;
-        background:var(--surface);color:var(--ink);font:inherit;font-weight:650;
+        background:#121212;color:var(--ink);font:inherit;font-weight:650;
         cursor:pointer;transition:background .16s ease,border-color .16s ease,box-shadow .16s ease,transform .16s ease
     }
-    #homeBtn{padding:0 16px;box-shadow:0 2px 7px rgba(26,50,87,.06)}
-    #homeBtn:hover,.file-choice:hover{border-color:#b9c9e4;background:#f7faff}
+    #homeBtn{padding:0 16px;box-shadow:0 2px 7px rgba(0,0,0,.18)}
+    #homeBtn:hover,.file-choice:hover{border-color:#555b64;background:#1b1c1e}
     button:focus-visible,.file-choice:focus-within,#homeBtn:focus-visible{outline:3px solid rgba(36,99,235,.28);outline-offset:2px}
     button:active,#homeBtn:active{transform:translateY(1px)}
     .hero{max-width:700px;margin:0 auto 30px;text-align:center}
     .eyebrow{margin:0 0 12px;color:var(--blue);font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
-    h1{margin:0;color:#142542;font-size:clamp(38px,7vw,62px);line-height:1.02;letter-spacing:-.055em}
+    h1{margin:0;color:#e5edf8;font-size:clamp(38px,7vw,62px);line-height:1.02;letter-spacing:-.055em}
     .hero-copy{max-width:580px;margin:17px auto 0;color:var(--muted);font-size:16px;line-height:1.65}
     .panel{
-        padding:clamp(18px,3vw,28px);border:1px solid rgba(214,225,241,.9);border-radius:22px;
-        background:rgba(255,255,255,.88);box-shadow:0 18px 48px rgba(31,58,99,.09),0 2px 6px rgba(31,58,99,.04);
+        padding:clamp(18px,3vw,28px);border:1px solid #3a3d42;border-radius:22px;
+        background:#121212;box-shadow:0 18px 48px rgba(0,0,0,.2),0 2px 6px rgba(0,0,0,.12);
         backdrop-filter:blur(10px)
     }
     .panel-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px}
@@ -60,37 +60,37 @@
     .panel-heading p{margin:5px 0 0;color:var(--muted);font-size:13px;line-height:1.5}
     #controls{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap}
     #loadFolderBtn,#clearBtn{padding:0 16px}
-    #loadFolderBtn{border-color:var(--blue);background:var(--blue);color:#fff;box-shadow:0 5px 12px rgba(36,99,235,.18)}
+    #loadFolderBtn{border-color:#5487ff;background:var(--blue);color:#fff;box-shadow:0 5px 12px rgba(36,99,235,.18)}
     #loadFolderBtn:hover{border-color:var(--blue-dark);background:var(--blue-dark)}
-    .file-choice{display:inline-flex;align-items:center;gap:9px;padding:0 15px}
+    .file-choice{display:inline-flex;align-items:center;gap:9px;padding:0 15px;background:#121212}
     .file-choice span{font-size:14px}
     #fileInput{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;clip-path:inset(50%);border:0}
-    #clearBtn{color:#465773}
-    #clearBtn:hover{border-color:#f1c5c5;background:#fff6f6;color:#a52f3b}
+    #clearBtn{color:#aebbd0}
+    #clearBtn:hover{border-color:#75444b;background:#291c1e;color:#ffabb4}
     #dropZone{
         display:flex;flex:1 1 240px;align-items:center;justify-content:center;min-height:52px;
-        padding:12px 16px;border:1.5px dashed #b9c9e2;border-radius:12px;
-        background:#f7faff;color:#667894;text-align:center;font-size:13px;font-weight:550;transition:.16s
+        padding:12px 16px;border:1.5px dashed #69798e;border-radius:12px;
+        background:#1d2023;color:#899bb7;text-align:center;font-size:13px;font-weight:550;transition:.16s
     }
     .soundboard{margin-top:24px}
     .soundboard-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 14px}
     .soundboard-heading h2{margin:0;font-size:16px;letter-spacing:-.01em}
     .soundboard-heading span{color:var(--muted);font-size:12px}
     .soundboard>button{
-        display:block;margin:0 0 14px;padding:0 16px;border-color:#cad7ea;background:#eaf1fc;color:#294267
+        display:block;margin:0 0 14px;padding:0 16px;border-color:#59616b;background:#242a31;color:#d7e4f8
     }
-    .soundboard>button:hover{border-color:#aabfe0;background:#e1ebfa}
+    .soundboard>button:hover{border-color:#7c8ba1;background:#2a323c}
     .grid{
         display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));
         align-items:stretch;gap:12px;width:100%;
     }
     .grid button{
         display:flex;align-items:center;justify-content:center;width:100%;min-width:0;min-height:60px;
-        padding:15px 18px;border-color:#dbe5f3;border-radius:14px;background:#fff;
-        box-shadow:0 3px 9px rgba(31,58,99,.045);font-size:14px;line-height:1.45;text-align:center;
+        padding:15px 18px;border-color:#3b424b;border-radius:14px;background:#17191b;color:#e5edf8;
+        box-shadow:0 3px 9px rgba(0,0,0,.15);font-size:14px;line-height:1.45;text-align:center;
         white-space:normal;overflow-wrap:anywhere;word-break:normal
     }
-    .grid button:hover{transform:translateY(-2px);border-color:#abc4f4;background:#f5f8ff;box-shadow:0 8px 18px rgba(36,99,235,.1)}
+    .grid button:hover{transform:translateY(-2px);border-color:#4b78d3;background:#202833;box-shadow:0 8px 18px rgba(0,0,0,.25)}
     @media(max-width:600px){
         body{padding:16px 14px 30px}
         .topbar{margin-bottom:34px}
@@ -116,21 +116,21 @@
     <section class="hero" aria-labelledby="pageTitle">
         <p class="eyebrow">Your cues, one tap away</p>
         <h1 id="pageTitle">.WAV Player</h1>
-        <p class="hero-copy">Build a soundboard for your production. Load WAV files below, then tap a cue to play it.</p>
+        <p class="hero-copy">Build a soundboard for your production. Load WAV or MP3 files below, then tap a cue to play it.</p>
     </section>
 
     <section class="panel" aria-label="Load sound effects">
         <div class="panel-heading">
-            <div><h2>Add your sound effects</h2><p>Choose a folder or files, or drop WAV files into the area.</p></div>
+            <div><h2>Add your sound effects</h2><p>Choose a folder or files, or drop WAV and MP3 files into the area.</p></div>
         </div>
         <div id="controls">
             <button id="loadFolderBtn" type="button">Load folder</button>
             <label class="file-choice">
-                <input id="fileInput" type="file" accept=".wav,audio/wav" multiple>
-                <span>Choose .wav files</span>
+                <input id="fileInput" type="file" accept=".wav,audio/wav,.mp3,audio/mpeg" multiple>
+                <span>Choose audio files</span>
             </label>
             <button id="clearBtn" type="button">Clear sounds</button>
-            <div id="dropZone">↧ &nbsp;Drop .wav files here</div>
+            <div id="dropZone">↧ &nbsp;Drop .wav or .mp3 files here</div>
         </div>
     </section>
 
@@ -186,11 +186,11 @@ stopAllBtn.addEventListener('click', stopAllAudio);
 container.parentNode.insertBefore(stopAllBtn, container);
 
 function filenameLabel(name){
-    return name.replace(/\.wav$/i,'');
+    return name.replace(/\.(wav|mp3)$/i,'');
 }
 
 async function handleFile(file){
-    if(!/\.wav$/i.test(file.name)) return;
+    if(!/\.(wav|mp3)$/i.test(file.name)) return;
     const url = URL.createObjectURL(file);
     objectUrls.push(url);
     addButton(filenameLabel(file.name), url, file.name);
@@ -211,17 +211,17 @@ fileInput.addEventListener('change', e=>{
 
 dropZone.addEventListener('dragover', () => {
     dropZone.style.borderColor = '#7ca5ff';
-    dropZone.style.background = '#fff';
+    dropZone.style.background = '#252d3a';
 });
 
 dropZone.addEventListener('dragleave', () => {
-    dropZone.style.borderColor = '#e2e6ef';
-    dropZone.style.background = '#fafbff';
+    dropZone.style.borderColor = '#69798e';
+    dropZone.style.background = '#1d2023';
 });
 
 dropZone.addEventListener('drop', e=>{
-    dropZone.style.borderColor='#e2e6ef';
-    dropZone.style.background='#fafbff';
+    dropZone.style.borderColor='#69798e';
+    dropZone.style.background='#1d2023';
     handleFileList(e.dataTransfer.files);
 });
 
@@ -240,7 +240,7 @@ loadFolderBtn.addEventListener('click', async ()=>{
     try{
         const dirHandle = await window.showDirectoryPicker();
         for await (const [name,handle] of dirHandle.entries()){
-            if(handle.kind === 'file' && /\.wav$/i.test(name)){
+            if(handle.kind === 'file' && /\.(wav|mp3)$/i.test(name)){
                 const file = await handle.getFile();
                 await handleFile(file);
             }
@@ -255,7 +255,7 @@ loadFolderBtn.addEventListener('click', async ()=>{
         const names = await res.json();
         if(!Array.isArray(names)) return;
         names.sort((a,b)=>a.localeCompare(b, undefined, { sensitivity:'base' })).forEach(name=>{
-            if(/\.wav$/i.test(name)){
+            if(/\.(wav|mp3)$/i.test(name)){
                 addButton(filenameLabel(name), './'+encodeURIComponent(name), name);
             }
         });

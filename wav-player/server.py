@@ -1,4 +1,4 @@
-"""Local launcher for WAV Player. Serves only files beside this script."""
+"""Local launcher for WAV Player. Serves audio and player files beside this script."""
 
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -19,7 +19,7 @@ class PlayerHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if urlsplit(self.path).path == "/list":
             names = sorted(
-                (p.name for p in ROOT.iterdir() if p.is_file() and p.suffix.lower() == ".wav"),
+                (p.name for p in ROOT.iterdir() if p.is_file() and p.suffix.lower() in {".wav", ".mp3"}),
                 key=str.casefold,
             )
             payload = json.dumps(names).encode("utf-8")
