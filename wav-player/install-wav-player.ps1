@@ -12,7 +12,7 @@ $files = @(
     'favicon-32x32-wav-player-html.png',
     'favicon-wav-player-html.ico'
 )
-$destinationPath = [System.IO.Path]::GetFullPath($Destination)
+$destinationPath = [System.IO.Path]::GetFullPath($Destination.Trim('"'))
 $temporaryPath = Join-Path ([System.IO.Path]::GetTempPath()) ('wav-player-' + [guid]::NewGuid().ToString('N'))
 
 try {
