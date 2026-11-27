@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('hstDesktop', {
 
 window.addEventListener('hst:global-setting-changed', () => window.hstDesktop.globalChange());
 window.addEventListener('hst:global-profile-changed', () => window.hstDesktop.globalChange());
+ipcRenderer.on('hst-desktop:page-active', () => window.dispatchEvent(new Event('hst:desktop-active')));
 
 window.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', event => {

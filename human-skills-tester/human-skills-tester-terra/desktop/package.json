@@ -1,6 +1,6 @@
 {
   "name": "human-skills-tester-terra-desktop",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "private": true,
   "description": "Desktop launcher for Human Skills Tester Terra.",
   "main": "main.cjs",

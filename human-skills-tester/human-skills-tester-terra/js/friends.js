@@ -203,3 +203,7 @@ function friendly(e) {
     return e?.message || 'Something went wrong.';
 }
 boot().catch(e => notice(friendly(e), true));
+window.addEventListener('hst:desktop-active', () => {
+    if (!user || user.isAnonymous) return;
+    refresh().catch(error => notice(friendly(error), true));
+});

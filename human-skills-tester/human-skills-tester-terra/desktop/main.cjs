@@ -7,6 +7,7 @@ const APP_URL = `${APP_ORIGIN}${APP_PATH}index.html`;
 const NAV_HEIGHT = 92;
 const PRELOAD_PAGES = [
   'index.html',
+  'tests.html',
   'reaction.html',
   'number-memory.html',
   'pi-memory.html',
@@ -68,6 +69,7 @@ function pageName(rawUrl) {
     'leaderboards.html': 'leaderboards',
     'settings.html': 'settings',
     'admin.html': 'admin',
+    'tests.html': 'tests',
     'reaction.html': 'games',
     'number-memory.html': 'games',
     'pi-memory.html': 'games',
@@ -198,6 +200,7 @@ function showPage(rawUrl) {
   activeKey = key;
   mainWindow.setTopBrowserView(view);
   resizeViews();
+  view.webContents.send('hst-desktop:page-active');
   sendShellState({ loading: view.webContents.isLoading() });
 }
 
