@@ -1,8 +1,14 @@
 if ('serviceWorker' in navigator)
     window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(console.warn));
+
+// Electron is already a desktop installation. Suppress the browser-only PWA
+// installation banner there, while leaving it unchanged on the public site.
+const isDesktopShell = /\bElectron\//.test(navigator.userAgent);
 let deferredInstall = null;
 window.addEventListener('beforeinstallprompt', event => {
     event.preventDefault();
+    if (isDesktopShell)
+        return;
     deferredInstall = event;
     if (document.querySelector('.install-banner'))
         return;

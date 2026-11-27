@@ -20,7 +20,7 @@ New in Terra:
 
 1. Deploy this folder as its own site path or replace an existing site build.
 2. Deploy the included Firebase rules and collection-group index when using accounts, logs, friends, multiplayer, or cloud leaderboards: `firebase deploy --only firestore:rules,firestore:indexes,database`.
-3. Reload or reinstall the PWA after deploy. The Terra cache name is `hst-terra-v7`.
+3. Reload or reinstall the PWA after deploy. The Terra cache name is `hst-terra-v12`.
 
 ## Administrator access
 

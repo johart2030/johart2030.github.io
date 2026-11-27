@@ -1,6 +1,6 @@
 import { auth, rtdb, ref, get, onValue, onDisconnect, update, set, runRTDBTransaction, rtdbTimestamp, profileFor, onAuthStateChanged } from './firebase.js';const $ = selector => document.querySelector(selector);
 const roomId = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
-let user = null, profile = null, room = null, serverOffset = 0, activeRound = 0, gameStarted = false, finished = false, timer = null, started = 0, score = 0, solution = 0, advancingRound = 0, reactionKeyHandler = null;
+let user = null, profile = null, room = null, serverOffset = 0, activeRound = 0, gameStarted = false, finished = false, timer = null, started = 0, score = 0, solution = 0, advancingRound = 0, reactionKeyHandler = null, gameInstance = 0;
 function waitForAuth() {
     return new Promise(resolve => {
         if (auth.currentUser)
@@ -44,6 +44,7 @@ async function ensureMembership() {
             score: 0,
             wins: 0,
             connected: true,
+            previousReaction: HST.get('reaction'),
             joinedAt: Date.now() + serverOffset,
             lastSeen: Date.now() + serverOffset
         };
@@ -131,6 +132,17 @@ async function handleRoom(current) {
     }
     if (current.status === 'countdown')
         scheduleRound(current);
+    // A refresh can reopen this page after the host has already changed the
+    // room from countdown to playing. Start the current round instead of
+    // leaving that player on the preparation screen forever.
+    if (current.status === 'playing' && !gameStarted && !finished) {
+        gameStarted = true;
+        setStatus(`Round ${current.currentRound}: Go!`);
+        startGame(current);
+    }
+    else if (current.status === 'playing' && finished) {
+        setStatus('Round complete · Waiting for other players…');
+    }
     if (current.host === user.uid && allPlayersFinished(current) && advancingRound !== round) {
         advancingRound = round;
         await advanceMatch(round);
@@ -311,6 +323,7 @@ function typing(current) {
     input.focus();
 }
 function sequenceSprint(current) {
+    const instance = gameInstance;
     const random = seeded(Number(current.seed) + Number(current.currentRound) * 211);
     const sequence = Array.from({ length: 4 + Math.min(4, Number(current.currentRound)) }, () => Math.floor(random() * 4));
     let position = 0;
@@ -323,7 +336,11 @@ function sequenceSprint(current) {
         await new Promise(resolve => setTimeout(resolve, 140));
     };
     const show = async () => {
-        for (const index of sequence) await flash(index);
+        for (const index of sequence) {
+            if (instance !== gameInstance) return;
+            await flash(index);
+        }
+        if (instance !== gameInstance) return;
         started = performance.now();
         pads.forEach(button => button.disabled = false);
         setStatus('Your turn — repeat the pattern.');
@@ -379,6 +396,7 @@ function disableGame() {
     document.querySelectorAll('#game button,#game input,#game textarea').forEach(element => element.disabled = true);
 }
 function clearCurrentGame() {
+    gameInstance += 1;
     if (reactionKeyHandler) {
         document.removeEventListener('keydown', reactionKeyHandler);
         reactionKeyHandler = null;

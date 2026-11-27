@@ -1,0 +1,54 @@
+{
+  "name": "human-skills-tester-terra-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Desktop launcher for Human Skills Tester Terra.",
+  "main": "main.cjs",
+  "author": "Human Skills Tester",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "^37.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.humanskillstester.terra",
+    "productName": "Human Skills Tester Terra",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.games"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Game"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "johart2030",
+        "repo": "johart2030.github.io"
+      }
+    ]
+  }
+}
