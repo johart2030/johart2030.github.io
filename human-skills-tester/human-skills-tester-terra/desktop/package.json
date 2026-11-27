@@ -1,6 +1,6 @@
 {
   "name": "human-skills-tester-terra-desktop",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "Desktop launcher for Human Skills Tester Terra.",
   "main": "main.cjs",
@@ -28,10 +28,11 @@
       "shell.html",
       "shell.css",
       "shell-renderer.js",
+      "terra.ico",
       "package.json"
     ],
     "win": {
-      "icon": "../../../favicon-index-html.ico",
+      "icon": "terra.ico",
       "target": [
         "nsis"
       ]
