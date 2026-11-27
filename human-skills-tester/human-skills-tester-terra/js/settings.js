@@ -1,4 +1,4 @@
-import { auth, db, onAuthStateChanged, doc, getDoc, setDoc, serverTimestamp } from './firebase.js';
+import { auth, db, onAuthStateChanged, signOut, doc, getDoc, setDoc, serverTimestamp } from './firebase.js';
 const $ = s => document.querySelector(s);
 let user = null, original = null;
 function values() {
@@ -22,6 +22,17 @@ async function boot() {
     });
     original = Appearance.load();
     setControls(original);
+    const signed = user && !user.isAnonymous;
+    $('#accountSummary').textContent = signed
+        ? `Signed in as ${user.displayName || user.email || 'Player'}. Manage your profile, privacy, and appearance here.`
+        : 'Sign in to sync your profile, scores, and privacy preferences.';
+    $('#manageProfile').hidden = !signed;
+    $('#accountSignIn').hidden = signed;
+    $('#accountSignOut').hidden = !signed;
+    $('#accountSignOut').onclick = async () => {
+        await signOut(auth);
+        location.href = 'index.html';
+    };
     for (const id of ['theme', 'accent', 'density'])
         $("#" + id).addEventListener('change', () => {
             Appearance.apply(values());

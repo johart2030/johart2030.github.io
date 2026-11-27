@@ -1,9 +1,12 @@
 # Human Skills Tester Terra Desktop
 
-This Electron project packages a desktop launcher for the deployed Terra web
-app. It deliberately loads the live site instead of duplicating its code, so
-the desktop app uses the same Firebase project, accounts, scores, multiplayer
-rooms, and game behavior as the browser version.
+This Electron project packages a persistent desktop shell for the deployed
+Terra web app. It deliberately uses the live site instead of duplicating game
+code, so the desktop app uses the same Firebase project, accounts, scores,
+multiplayer rooms, and game behavior as the browser version. The shell keeps
+its pill navigation mounted and caches visited sections so switching between
+Home, Multiplayer, Friends, Leaderboard, Settings, and Admin does not reload
+those sections.
 
 ## Local test
 
@@ -26,7 +29,7 @@ runner.
 
 ## Release build
 
-Push a tag that matches the app version, such as `v1.0.1`. The repository workflow at
+Push a tag that matches the app version, such as `v1.0.2`. The repository workflow at
 `.github/workflows/release-desktop.yml` builds Windows, macOS, and Linux
 installers and attaches them to the matching GitHub Release.
 

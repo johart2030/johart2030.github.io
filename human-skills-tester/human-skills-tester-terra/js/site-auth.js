@@ -38,6 +38,13 @@ export const ready = new Promise(resolve => onAuthStateChanged(auth, async (user
     }
     window.hstProfile = profile;
     paint(user, profile);
+    // The Electron shell uses this small, one-way message to show its Admin
+    // tab only to accounts that already have the Firebase admin role.
+    window.hstDesktop?.setAccount?.({
+        signed: Boolean(user && !user.isAnonymous),
+        isAdmin: profile?.role === 'admin',
+        name: profile?.displayName || user?.displayName || ''
+    });
     if (user)
         setupPresence(user, profile);
     resolve({
