@@ -75,8 +75,12 @@ function paint(user, profile) {
             : '<a href="login.html" class="account-pill">Sign in</a>';
     });
     document.querySelectorAll('[data-signout]').forEach(button => button.onclick = async () => {
-        await signOut(auth);
-        location.href = 'index.html';
+        try {
+            await signOut(auth);
+        }
+        catch (error) {
+            console.warn('Could not sign out', error);
+        }
     });
 }
 function setupPresence(user, profile) {

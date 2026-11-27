@@ -9,8 +9,12 @@ window.addEventListener('beforeinstallprompt', event => {
 
 contextBridge.exposeInMainWorld('hstDesktop', {
   navigate: url => ipcRenderer.send('hst-desktop:navigate', url),
-  setAccount: state => ipcRenderer.send('hst-desktop:account', state)
+  setAccount: state => ipcRenderer.send('hst-desktop:account', state),
+  globalChange: () => ipcRenderer.send('hst-desktop:global-change')
 });
+
+window.addEventListener('hst:global-setting-changed', () => window.hstDesktop.globalChange());
+window.addEventListener('hst:global-profile-changed', () => window.hstDesktop.globalChange());
 
 window.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('click', event => {

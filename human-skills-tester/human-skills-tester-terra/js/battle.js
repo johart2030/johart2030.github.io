@@ -392,6 +392,30 @@ async function finishRound(value, label) {
         connected: true
     });
 }
+$('#leaveMatch').onclick = async () => {
+    const button = $('#leaveMatch');
+    button.disabled = true;
+    setStatus('Leaving match…');
+    try {
+        await remove(ref(rtdb, `rooms/${roomId}/players/${user.uid}`));
+        if (room?.host === user.uid)
+            await remove(ref(rtdb, `rooms/${roomId}`));
+        await set(ref(rtdb, `socialPresence/${user.uid}`), {
+            state: 'online',
+            activity: 'browsing',
+            joinable: false,
+            lastSeen: rtdbTimestamp()
+        });
+        localStorage.removeItem('hst_active_room');
+        const lobby = new URL('multiplayer.html', location.href).href;
+        if (window.hstDesktop?.navigate) window.hstDesktop.navigate(lobby);
+        else location.href = lobby;
+    }
+    catch (error) {
+        setStatus(`Could not leave match: ${error.message}`);
+        button.disabled = false;
+    }
+};
 function disableGame() {
     document.querySelectorAll('#game button,#game input,#game textarea').forEach(element => element.disabled = true);
 }

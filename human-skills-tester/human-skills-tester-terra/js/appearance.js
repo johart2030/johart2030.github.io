@@ -40,12 +40,18 @@ const Appearance = {
             ...value
         };
         localStorage.setItem(this.key, JSON.stringify(safe));
+        window.dispatchEvent(new Event('hst:global-setting-changed'));
         return this.apply(safe);
     },
     reset() {
         localStorage.removeItem(this.key);
+        window.dispatchEvent(new Event('hst:global-setting-changed'));
         return this.apply(this.defaults);
     }
 };
 window.Appearance = Appearance;
 Appearance.apply();
+window.addEventListener('storage', event => {
+    if (event.key !== Appearance.key) return;
+    Appearance.apply();
+});

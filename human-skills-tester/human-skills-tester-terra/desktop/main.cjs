@@ -5,11 +5,31 @@ const APP_ORIGIN = 'https://johart2030.github.io';
 const APP_PATH = '/human-skills-tester/human-skills-tester-terra/';
 const APP_URL = `${APP_ORIGIN}${APP_PATH}index.html`;
 const NAV_HEIGHT = 92;
+const PRELOAD_PAGES = [
+  'index.html',
+  'reaction.html',
+  'number-memory.html',
+  'pi-memory.html',
+  'aim.html',
+  'sequence.html',
+  'visual-memory.html',
+  'typing.html',
+  'math.html',
+  'multiplayer.html',
+  'friends.html',
+  'leaderboards.html',
+  'settings.html',
+  'admin.html'
+];
 const pageViews = new Map();
 let mainWindow;
 let activeView;
 let activeKey = '';
 let accountState = { signed: false, isAdmin: false, name: '' };
+let profileLoading = true;
+let loadingPages = new Set();
+let profilePages = new Set();
+let profileLoadingTimeout;
 
 function isAppUrl(rawUrl) {
   try {
@@ -47,7 +67,15 @@ function pageName(rawUrl) {
     'friends.html': 'friends',
     'leaderboards.html': 'leaderboards',
     'settings.html': 'settings',
-    'admin.html': 'admin'
+    'admin.html': 'admin',
+    'reaction.html': 'games',
+    'number-memory.html': 'games',
+    'pi-memory.html': 'games',
+    'aim.html': 'games',
+    'sequence.html': 'games',
+    'visual-memory.html': 'games',
+    'typing.html': 'games',
+    'math.html': 'games'
   })[file] || '';
 }
 
@@ -56,6 +84,7 @@ function sendShellState(partial = {}) {
   mainWindow.webContents.send('hst-shell:state', {
     page: pageName(activeKey),
     loading: false,
+    profileLoading,
     account: accountState,
     ...partial
   });
@@ -100,8 +129,41 @@ function attachViewHandlers(view) {
   });
   view.webContents.on('did-finish-load', () => {
     view.webContents.insertCSS('.site-header,.site-footer{display:none!important}body{min-height:100vh!important}').catch(() => {});
+    loadingPages.delete(view);
+    finishProfileRefreshIfReady();
     if (view === activeView) sendShellState();
   });
+  view.webContents.on('did-fail-load', (_event, code, _description, _url, isMainFrame) => {
+    if (!isMainFrame || code === -3) return;
+    loadingPages.delete(view);
+    profilePages.delete(view);
+    finishProfileRefreshIfReady();
+  });
+}
+
+function finishProfileRefreshIfReady() {
+  if (profileLoading && loadingPages.size === 0 && profilePages.size === 0) finishProfileRefresh();
+}
+
+function finishProfileRefresh() {
+  clearTimeout(profileLoadingTimeout);
+  profileLoadingTimeout = null;
+  profileLoading = false;
+  loadingPages.clear();
+  profilePages.clear();
+  sendShellState();
+}
+
+function refreshAllPages() {
+  const views = [...pageViews.values()].filter(view => !view.webContents.isDestroyed());
+  if (!views.length) return;
+  profileLoading = true;
+  loadingPages = new Set(views);
+  profilePages = new Set(views);
+  sendShellState();
+  clearTimeout(profileLoadingTimeout);
+  profileLoadingTimeout = setTimeout(finishProfileRefresh, 25000);
+  for (const view of views) view.webContents.reload();
 }
 
 function createPageView(url) {
@@ -113,6 +175,10 @@ function createPageView(url) {
       preload: path.join(__dirname, 'preload.cjs')
     }
   });
+  if (profileLoading) {
+    loadingPages.add(view);
+    profilePages.add(view);
+  }
   attachViewHandlers(view);
   mainWindow.addBrowserView(view);
   view.webContents.loadURL(url);
@@ -153,6 +219,13 @@ function createWindow() {
   });
   mainWindow.loadFile(path.join(__dirname, 'shell.html'));
   mainWindow.once('ready-to-show', () => showPage(APP_URL));
+  mainWindow.once('ready-to-show', () => {
+    for (const page of PRELOAD_PAGES) {
+      const url = `${APP_ORIGIN}${APP_PATH}${page}`;
+      if (!pageViews.has(pageKey(url))) pageViews.set(pageKey(url), createPageView(url));
+    }
+    resizeViews();
+  });
   mainWindow.on('resize', resizeViews);
   mainWindow.on('closed', () => {
     activeView = null;
@@ -164,13 +237,25 @@ function createWindow() {
 ipcMain.on('hst-shell:navigate', (_event, url) => showPage(url));
 ipcMain.on('hst-desktop:navigate', (_event, url) => showPage(url));
 ipcMain.on('hst-desktop:account', (event, state = {}) => {
-  if (!activeView || event.sender !== activeView.webContents) return;
-  accountState = {
+  const sourceView = [...pageViews.values()].find(view => view.webContents === event.sender);
+  if (!sourceView) return;
+  profilePages.delete(sourceView);
+  const nextState = {
     signed: Boolean(state.signed),
     isAdmin: Boolean(state.isAdmin),
     name: typeof state.name === 'string' ? state.name : ''
   };
+  const changed = nextState.signed !== accountState.signed || nextState.isAdmin !== accountState.isAdmin || nextState.name !== accountState.name;
+  accountState = {
+    ...nextState
+  };
+  if (changed && !profileLoading) refreshAllPages();
   sendShellState();
+  finishProfileRefreshIfReady();
+});
+ipcMain.on('hst-desktop:global-change', event => {
+  if (![...pageViews.values()].some(view => view.webContents === event.sender)) return;
+  refreshAllPages();
 });
 
 app.whenReady().then(() => {

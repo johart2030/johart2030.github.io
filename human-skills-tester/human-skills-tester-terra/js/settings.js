@@ -31,7 +31,10 @@ async function boot() {
     $('#accountSignOut').hidden = !signed;
     $('#accountSignOut').onclick = async () => {
         await signOut(auth);
-        location.href = 'index.html';
+        $('#accountSummary').textContent = 'Signed out. You can keep using local games or sign in again to sync your account.';
+        $('#manageProfile').hidden = true;
+        $('#accountSignIn').hidden = false;
+        $('#accountSignOut').hidden = true;
     };
     for (const id of ['theme', 'accent', 'density'])
         $("#" + id).addEventListener('change', () => {

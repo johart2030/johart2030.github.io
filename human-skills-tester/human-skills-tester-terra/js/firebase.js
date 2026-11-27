@@ -111,5 +111,6 @@ export async function claimDisplayName(user, raw) {
     await updateProfile(user, {
         displayName
     });
+    window.dispatchEvent(new Event('hst:global-profile-changed'));
     return displayName;
 }

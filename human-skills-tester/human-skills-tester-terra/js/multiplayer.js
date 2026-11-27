@@ -203,7 +203,16 @@ async function renderRoom(room) {
     }
 }
 function showLobby() {
+    if (roomUnsub) {
+        roomUnsub();
+        roomUnsub = null;
+    }
+    if (connectionUnsub) {
+        connectionUnsub();
+        connectionUnsub = null;
+    }
     roomId = null;
+    startLock = false;
     localStorage.removeItem('hst_active_room');
     $('#room').hidden = true;
     $('#lobby').hidden = false;
@@ -233,23 +242,58 @@ $('#joinForm').onsubmit = event => {
     joinRoom($('#joinCode').value).catch(error => showMessage(error.message, 'error'));
 };
 $('#ready').onclick = async () => {
+    const button = $('#ready');
+    if (!roomId) {
+        showMessage('Join or create a room before changing ready status.', 'error');
+        return;
+    }
+    button.disabled = true;
     try {
-        const current = (await get(ref(rtdb, `rooms/${roomId}/players/${user.uid}/ready`))).val();
-        await set(ref(rtdb, `rooms/${roomId}/players/${user.uid}/ready`), !current);
+        const playerRef = ref(rtdb, `rooms/${roomId}/players/${user.uid}`);
+        const [roomSnapshot, readySnapshot] = await Promise.all([
+            get(ref(rtdb, `rooms/${roomId}`)),
+            get(ref(rtdb, `rooms/${roomId}/players/${user.uid}/ready`))
+        ]);
+        if (!roomSnapshot.exists() || roomSnapshot.val().status !== 'waiting')
+            throw new Error('This room is no longer waiting for players.');
+        if (!roomSnapshot.val().players?.[user.uid])
+            throw new Error('Your player slot is missing. Leave and rejoin the room.');
+        await set(ref(rtdb, `rooms/${roomId}/players/${user.uid}/ready`), !readySnapshot.val());
+        showMessage(!readySnapshot.val() ? 'You are ready. Waiting for the other players.' : 'You are no longer ready.');
     }
     catch (error) {
         showMessage(`Could not update ready status: ${error.message}`, 'error');
     }
+    finally {
+        button.disabled = false;
+    }
 };
 $('#leave').onclick = async () => {
-    try {
-        await remove(ref(rtdb, `rooms/${roomId}/players/${user.uid}`));
-        const host = (await get(ref(rtdb, `rooms/${roomId}/host`))).val();
-        if (user.uid === host)
-            await remove(ref(rtdb, `rooms/${roomId}`));
+    const leavingRoom = roomId;
+    if (!leavingRoom) {
+        showLobby();
+        return;
     }
-    finally {
-        location.href = 'multiplayer.html';
+    $('#leave').disabled = true;
+    showMessage('Leaving room…');
+    try {
+        await remove(ref(rtdb, `rooms/${leavingRoom}/players/${user.uid}`));
+        const host = (await get(ref(rtdb, `rooms/${leavingRoom}/host`))).val();
+        if (user.uid === host)
+            await remove(ref(rtdb, `rooms/${leavingRoom}`));
+        await set(ref(rtdb, `socialPresence/${user.uid}`), {
+            state: 'online',
+            activity: 'browsing',
+            joinable: false,
+            lastSeen: rtdbTimestamp()
+        });
+        roomId = null;
+        localStorage.removeItem('hst_active_room');
+        showLobby();
+    }
+    catch (error) {
+        showMessage(`Could not leave room: ${error.message}`, 'error');
+        $('#leave').disabled = false;
     }
 };
 $('#matchmake').onclick = async () => {
