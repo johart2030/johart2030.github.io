@@ -26,7 +26,7 @@ runner.
 
 ## Release build
 
-Push a tag such as `desktop-v1.0.0`. The repository workflow at
+Push a tag that matches the app version, such as `v1.0.1`. The repository workflow at
 `.github/workflows/release-desktop.yml` builds Windows, macOS, and Linux
 installers and attaches them to the matching GitHub Release.
 

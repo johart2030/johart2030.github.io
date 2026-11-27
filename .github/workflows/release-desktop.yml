@@ -3,7 +3,7 @@ name: Release Human Skills Tester Terra Desktop
 on:
   push:
     tags:
-      - 'desktop-v*'
+      - 'v*'
   workflow_dispatch:
 
 permissions:

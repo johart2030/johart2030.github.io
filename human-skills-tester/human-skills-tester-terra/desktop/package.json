@@ -1,6 +1,6 @@
 {
   "name": "human-skills-tester-terra-desktop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Desktop launcher for Human Skills Tester Terra.",
   "main": "main.cjs",
@@ -47,7 +47,8 @@
       {
         "provider": "github",
         "owner": "johart2030",
-        "repo": "johart2030.github.io"
+        "repo": "johart2030.github.io",
+        "releaseType": "release"
       }
     ]
   }
